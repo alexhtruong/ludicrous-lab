@@ -45,10 +45,10 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
         [0, 0, 100, 0], # pure blue
     ]
     potion_quantities = [0, 0, 0]
-    for potion in potions_delivered:
+    for delivered_potion in potions_delivered:
         for i, potion in enumerate(potion_types):
-            if potion.potion_type == potion_types[i]:
-                potion_quantities[i] = potion.quantities
+            if delivered_potion.potion_type == potion_types[i]:
+                potion_quantities[i] = delivered_potion.quantity
     
     red_potions, green_potions, blue_potions = potion_quantities
     red_ml = red_potions * 100
