@@ -17,6 +17,7 @@ class InventoryAudit(BaseModel):
     gold: int
 
 
+
 class CapacityPlan(BaseModel):
     potion_capacity: int = Field(
         ge=0, le=10, description="Potion capacity units, max 10"
@@ -36,15 +37,25 @@ def get_inventory():
         row = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT gold
+                SELECT gold, red_potions, green_potions, blue_potions, red_ml, green_ml, blue_ml 
                 FROM global_inventory
                 """
             )
         ).one()
 
         gold = row.gold
+        red_potions = row.red_potions
+        green_potions = row.green_potions
+        blue_potions = row.blue_potions
 
-    return InventoryAudit(number_of_potions=0, ml_in_barrels=0, gold=gold)
+        red_ml = row.red_ml
+        green_ml = row.green_ml
+        blue_ml = row.blue_ml
+
+        number_of_potions = red_potions + green_potions + blue_potions
+        ml_in_barrels = red_ml + green_ml + blue_ml
+
+    return InventoryAudit(number_of_potions=number_of_potions, ml_in_barrels=ml_in_barrels, gold=gold)
 
 
 @router.post("/plan", response_model=CapacityPlan)
