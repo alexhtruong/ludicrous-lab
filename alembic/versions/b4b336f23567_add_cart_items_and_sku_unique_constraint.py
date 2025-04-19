@@ -24,7 +24,6 @@ def upgrade() -> None:
         'cart_items',
         ['cart_id', 'sku']
     )
-    op.crea
 
 
 def downgrade() -> None:
