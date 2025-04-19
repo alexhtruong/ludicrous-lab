@@ -83,7 +83,7 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
         params = {"gold_paid": delivery.gold_paid}
         # {red_ml: #, green_ml: #, ...}
         params.update(ml_added)
-        print("post_deliver_barrels ml added: " + ml_added)
+        print(f"post_deliver_barrels ml added: {ml_added}")
         connection.execute(
             sqlalchemy.text(sql), [params]
         )
@@ -134,13 +134,13 @@ def create_barrel_plan(
             if current_dark_ml < 500:
                 low_colors.append((3, "dark"))
             
-            print("LOW COLORS: " + low_colors)
+            print(f"LOW COLORS: {low_colors}")
             if low_colors:
                 # calculate how well this barrel matches our needs
                 color_match_score = 0
                 for color_index, color_name in low_colors:
                     color_match_score += barrel.potion_type[color_index]
-                print("COLOR MATCH SCORE: " + color_match_score)
+                print(f"COLOR MATCH SCORE: {color_match_score}")
                 if color_match_score > 0:
                     valid_barrels.append(
                         (barrel, value_score * color_match_score)
