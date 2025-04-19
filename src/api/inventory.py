@@ -49,11 +49,11 @@ def get_inventory():
         dark_ml = row.dark_ml
 
         number_of_potions = connection.execute(
+            # NOTE: not sure if we need to count is_active?
             sqlalchemy.text(
                 """
                 SELECT COALESCE(SUM(quantity), 0)
                 from potions
-                WHERE is_active = True
                 """
             )
         ).scalar()
