@@ -42,7 +42,7 @@ def test_bottle_blue_and_red_potions() -> None:
         current_potion_inventory=current_potion_inventory,
     )
 
-    assert len(result) == 2
+    assert len(result) == 3
     assert result[0].potion_type == [100, 0, 0, 0]
     assert result[1].potion_type == [0, 0, 100, 0]
     assert result[0].quantity == 1

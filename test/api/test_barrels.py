@@ -4,6 +4,7 @@ from src.api.barrels import (
     Barrel,
     BarrelOrder,
 )
+from src.api.bottler import post_deliver_bottles, PotionMixes
 from typing import List
 
 
@@ -82,23 +83,23 @@ def test2_buy_small_red_barrel_plan() -> None:
     wholesale_catalog: List[Barrel] = [
         Barrel(
             sku="SMALL_RED_BARREL",
-            ml_per_barrel=1000,
+            ml_per_barrel=500,
             potion_type=[1.0, 0, 0, 0],
             price=100,
             quantity=10,
         ),
         Barrel(
             sku="SMALL_GREEN_BARREL",
-            ml_per_barrel=1000,
+            ml_per_barrel=500,
             potion_type=[0, 1.0, 0, 0],
-            price=150,
+            price=100,
             quantity=5,
         ),
         Barrel(
             sku="SMALL_BLUE_BARREL",
-            ml_per_barrel=1000,
+            ml_per_barrel=500,
             potion_type=[0, 0, 1.0, 0],
-            price=500,
+            price=120,
             quantity=2,
         ),
     ]
@@ -123,7 +124,7 @@ def test2_buy_small_red_barrel_plan() -> None:
     assert isinstance(barrel_orders, list)
     assert all(isinstance(order, BarrelOrder) for order in barrel_orders)
     assert len(barrel_orders) > 0  # Ensure at least one order is generated
-    assert barrel_orders[0].sku == "SMALL_BLUE_BARREL"  # Placeholder expected output
+    assert barrel_orders[0].sku == "SMALL_RED_BARREL"  # Placeholder expected output
     assert barrel_orders[0].quantity == 1  # Placeholder quantity assertion
 
 

@@ -98,6 +98,20 @@ def create_cart(new_cart: Customer):
     cart_id = cart_id_counter
     cart_id_counter += 1
     carts[cart_id] = {}
+    # with db.engine.begin() as connection:
+    #     result = connection.execute(
+    #         sqlalchemy.text(
+    #             """
+    #             INSERT INTO carts (customer_id)
+    #             VALUES (:customer_id)
+    #             RETURNING cart_id
+    #             """
+    #         ),
+    #         [{
+    #             "customer_id": customer_id
+    #         }]
+    #     )
+    #     result.scalar_one()
     return CartCreateResponse(cart_id=cart_id)
 
 
@@ -113,6 +127,8 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     if cart_id not in carts:
         raise HTTPException(status_code=404, detail="Cart not found")
 
+    # upsert for inserting into cart items with conficting cart_id, potion_sku composite key
+    #checked out flag for carts field?
     carts[cart_id][item_sku] = cart_item.quantity
     return status.HTTP_204_NO_CONTENT
 

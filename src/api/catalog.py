@@ -23,32 +23,32 @@ class CatalogItem(BaseModel):
 def create_catalog() -> List[CatalogItem]:
     catalog = []
     with db.engine.begin() as connection: 
-        row = connection.execute(
+        # get all current potions in the form of [(sku, name, ...), (sku, name, ...)]
+        potions = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT red_potions, green_potions, blue_potions
-                FROM global_inventory
+                SELECT sku, name, quantity, price, red_ml, green_ml, blue_ml, dark_ml
+                FROM potions
+                WHERE is_active = TRUE AND quantity > 0
                 """
             )
-        ).one()
+        ).all()
 
-        potion_configs = [
-            ("RED", row.red_potions, [100, 0, 0, 0]),
-            ("GREEN", row.green_potions, [0, 100, 0, 0]),
-            ("BLUE", row.blue_potions, [0, 0, 100, 0])
-        ]
-
-        for color, quantity, potion_type in potion_configs:
-            if quantity > 0:
-                catalog.append(
-                    CatalogItem(
-                        sku=f"{color}_POTION_0",
-                        name=f"{color.lower()} potion",
-                        quantity=quantity,
-                        price=50,
-                        potion_type=potion_type
-                    )
+        for potion in potions:
+            sku = potion[0]
+            name = potion[1]
+            quantity = potion[2]
+            price = potion[3]
+            potion_type = [potion[4], potion[5], potion[6], potion[7]]  # [r, g, b, d]
+            catalog.append(
+                CatalogItem(
+                    sku=sku,
+                    name=name,
+                    quantity=quantity,
+                    price=price,
+                    potion_type=potion_type
                 )
+            )
     
     return catalog
 
