@@ -104,7 +104,7 @@ def create_barrel_plan(
 
     def would_exceed_barrel_capacity(barrel: Barrel) -> bool:
             total_in_inventory = current_red_ml + current_green_ml + current_blue_ml + current_dark_ml
-            new_amount = total_in_inventory + (barrel.ml_per_barrel * barrel.quantity) 
+            new_amount = total_in_inventory + (barrel.ml_per_barrel) # TODO: configure for multiple quantity barrels  
             if new_amount > max_barrel_capacity:
                 print(f"skipping - would exceed barrel capacity")
                 return True
