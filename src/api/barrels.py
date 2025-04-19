@@ -83,7 +83,7 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
         params = {"gold_paid": delivery.gold_paid}
         # {red_ml: #, green_ml: #, ...}
         params.update(ml_added)
-        print("post_deliver_barrels ml added: " + ml_added)
+        print(f"post_deliver_barrels ml added: {ml_added}")
         connection.execute(
             sqlalchemy.text(sql), [params]
         )
@@ -134,7 +134,7 @@ def create_barrel_plan(
             if current_dark_ml < 500:
                 low_colors.append((3, "dark"))
             
-            print("LOW COLORS: " + low_colors)
+            print(f"LOW COLORS: {low_colors}")
             if low_colors:
                 # calculate how well this barrel matches our needs
                 color_match_score = 0
