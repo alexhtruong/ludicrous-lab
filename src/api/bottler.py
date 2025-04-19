@@ -53,7 +53,8 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
         for i, color_percent in enumerate(delivered_potion.potion_type):
             color_ml = ML_COLUMNS[i]  # gets 'red_ml', 'green_ml', etc.
             ml_used[color_ml] += color_percent * delivered_potion.quantity
-    
+    print("post_deliver_bottles potion_quantities: " + potion_quantities)
+    print("post_deliver_bottles ml_used: " + ml_used)
     with db.engine.begin() as connection:
         # subtracting ml_used 
         sql = f"""
@@ -89,6 +90,7 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
                     "blue_ml": potion_type[2] * 100,
                     "dark_ml": potion_type[3] * 100,
                 }
+                print("updating potions in db: " + params)
                 connection.execute(
                     sqlalchemy.text(sql), [params]
                 )
@@ -105,11 +107,6 @@ def create_bottle_plan(
     # NOTE: set is_active potion for false on certain days?
     """
     Creates a plan for bottling potions based on available liquids.
-    
-    Algorithm:
-    1. First try to make pure potions (uses single color)
-    2. Then look for optimal mixed potion combinations
-    3. Finally try to use remaining liquids for complex mixes
     """
     plans = []
     available_liquids = {
@@ -126,14 +123,13 @@ def create_bottle_plan(
             quantity = min(max_potions, maximum_potion_capacity)
             
             potion_type = [color * 100 for color in recipe]
-
             plans.append(
                 PotionMixes(
                     potion_type=potion_type,
                     quantity=quantity,
                 )
             )
-    
+    print(plans)
     return plans
 
 def calculate_max_potions(available: dict, recipe: List[float]) -> int:
@@ -195,7 +191,7 @@ def get_bottle_plan():
                     quantity=quantity
                 )
             )
-
+    print("get_bottle_plan inventory: " + inventory)
     return create_bottle_plan(
         red_ml=red_ml,
         green_ml=green_ml,
