@@ -112,7 +112,7 @@ def create_barrel_plan(
                 """
             )
         ).fetchall()
-        print("BARREL PLAN POTIONS: " + potions)
+        print(f"BARREL PLAN POTIONS: {potions}")
         if not potions:
             return []
         

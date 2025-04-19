@@ -129,7 +129,7 @@ def create_bottle_plan(
                     quantity=quantity,
                 )
             )
-    print(plans)
+    print(f"create_bottle_plan PLANS: {plans}")
     return plans
 
 def calculate_max_potions(available: dict, recipe: List[float]) -> int:
@@ -191,7 +191,7 @@ def get_bottle_plan():
                     quantity=quantity
                 )
             )
-    print("get_bottle_plan inventory: " + inventory)
+    print(f"get_bottle_plan inventory: {inventory}")
     return create_bottle_plan(
         red_ml=red_ml,
         green_ml=green_ml,
