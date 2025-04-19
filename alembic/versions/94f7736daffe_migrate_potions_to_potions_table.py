@@ -20,8 +20,29 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def upgrade() -> None:
-    # Create potions from global inventory
+def upgrade() -> None:    
+    op.create_table(
+        'potions',
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("red_ml", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("green_ml", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("blue_ml", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("dark_ml", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("quantity", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("price", sa.Integer, nullable=False, server_default="50"),  
+        sa.Column("name", sa.String(50), nullable=False), 
+        sa.Column("sku", sa.String(20), unique=True, nullable=False), 
+        sa.Column("created_at", sa.DateTime, server_default=sa.text('CURRENT_TIMESTAMP')),
+        sa.Column("updated_at", sa.DateTime, onupdate=sa.text('CURRENT_TIMESTAMP')),
+        sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
+        sa.CheckConstraint("red_ml >= 0", name="check_red_positive"),
+        sa.CheckConstraint("green_ml >= 0", name="check_green_positive"),
+        sa.CheckConstraint("blue_ml >= 0", name="check_blue_positive"),
+        sa.CheckConstraint("dark_ml >= 0", name="check_dark_positive"),
+        sa.CheckConstraint("quantity >= 0", name="check_quantity_positive"),
+        sa.CheckConstraint("red_ml + green_ml + blue_ml + dark_ml = 100", name="check_total_ml"),
+    )
+        
     op.execute(
         """
         INSERT INTO potions (sku, name, quantity, red_ml, green_ml, blue_ml, dark_ml)
@@ -60,7 +81,6 @@ def upgrade() -> None:
         FROM global_inventory
         WHERE blue_potions > 0;
 
-        -- Reset the old columns to 0
         UPDATE global_inventory SET
             red_potions = 0,
             green_potions = 0,
