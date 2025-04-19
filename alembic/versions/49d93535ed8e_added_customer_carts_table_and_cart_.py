@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         'carts',
-        sa.Column("cart_id", sa.Integer, primary_key=True, server_default="0"),
+        sa.Column("cart_id", sa.Integer, primary_key=True),
         sa.Column("customer_id", sa.Integer, nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column("is_checked_out", sa.Boolean, server_default="false")
@@ -38,5 +38,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table('carts')
     op.drop_table('cart_items')
+    op.drop_table('carts')
+
