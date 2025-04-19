@@ -101,7 +101,6 @@ def create_barrel_plan(
     print(
         f"gold: {gold}, max_barrel_capacity: {max_barrel_capacity}, current_red_ml: {current_red_ml}, current_green_ml: {current_green_ml}, current_blue_ml: {current_blue_ml}, current_dark_ml: {current_dark_ml}, wholesale_catalog: {wholesale_catalog}"
     )
-    
     with db.engine.begin() as connection:
         potions = connection.execute(
             sqlalchemy.text(
@@ -113,14 +112,15 @@ def create_barrel_plan(
             )
         ).fetchall()
         print(f"BARREL PLAN POTIONS: {potions}")
-        if not potions:
-            return []
+        if not potions and current_red_ml >= 500 and current_green_ml >= 500 and current_blue_ml >= 500 and current_dark_ml >= 500:
+            return []  # we have enough of everything
         
         valid_barrels = []
         for barrel in wholesale_catalog:
             # skip invalid barrels
             if barrel.price > gold or barrel.sku.startswith('JUNK'):
                 continue
+            # TODO: buying large yellow barrels fails the value test
             value_score = barrel.ml_per_barrel / barrel.price
 
             # track low colors and their corresponding needs
@@ -129,7 +129,7 @@ def create_barrel_plan(
                 low_colors.append((0, "red"))
             if current_green_ml < 500:
                 low_colors.append((1, "green"))
-            if current_blue_ml < 5000:
+            if current_blue_ml < 500:
                 low_colors.append((2, "blue"))
             if current_dark_ml < 500:
                 low_colors.append((3, "dark"))
@@ -148,7 +148,7 @@ def create_barrel_plan(
 
         if not valid_barrels:
             return []
-        
+        print(valid_barrels)
         best_barrel, best_score = max(valid_barrels, key=lambda x: x[1]) # returns (Barrel, 0.8)
         print("BEST BARREL SKU: " + best_barrel.sku)
         return [
