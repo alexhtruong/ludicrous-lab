@@ -75,10 +75,10 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
         sql = """
             UPDATE global_inventory SET
             gold = gold - :gold_paid,
-            red_ml = red_ml - :red_ml,
-            green_ml = green_ml - :green_ml,
-            blue_ml = blue_ml - :blue_ml,
-            dark_ml = dark_ml - :dark_ml
+            red_ml = red_ml + :red_ml,
+            green_ml = green_ml + :green_ml,
+            blue_ml = blue_ml + :blue_ml,
+            dark_ml = dark_ml + :dark_ml
         """
         params = {"gold_paid": delivery.gold_paid}
         # {red_ml: #, green_ml: #, ...}
@@ -101,6 +101,15 @@ def create_barrel_plan(
     print(
         f"gold: {gold}, max_barrel_capacity: {max_barrel_capacity}, current_red_ml: {current_red_ml}, current_green_ml: {current_green_ml}, current_blue_ml: {current_blue_ml}, current_dark_ml: {current_dark_ml}, wholesale_catalog: {wholesale_catalog}"
     )
+
+    def would_exceed_barrel_capacity(barrel: Barrel) -> bool:
+            total_in_inventory = current_red_ml + current_green_ml + current_blue_ml + current_dark_ml
+            new_amount = total_in_inventory + (barrel.ml_per_barrel * barrel.quantity) 
+            if new_amount > max_barrel_capacity:
+                print(f"skipping - would exceed barrel capacity")
+                return True
+            return False
+
     with db.engine.begin() as connection:
         potions = connection.execute(
             sqlalchemy.text(
@@ -114,11 +123,17 @@ def create_barrel_plan(
         print(f"BARREL PLAN POTIONS: {potions}")
         if not potions and current_red_ml >= 500 and current_green_ml >= 500 and current_blue_ml >= 500 and current_dark_ml >= 500:
             return []  # we have enough of everything
-        
+
         valid_barrels = []
         for barrel in wholesale_catalog:
-            # skip invalid barrels
-            if barrel.price > gold or barrel.sku.startswith('JUNK'):
+            print(f"evaluating barrel {barrel.sku}: price={barrel.price}, gold={gold}")
+            if barrel.price > gold:
+                print(f"skipping - too expensive")
+                continue
+            if barrel.sku.startswith('JUNK'):
+                print(f"skipping - junk barrel")
+                continue
+            if would_exceed_barrel_capacity(barrel):
                 continue
             # TODO: buying large yellow barrels fails the value test
             value_score = barrel.ml_per_barrel / barrel.price
@@ -158,7 +173,6 @@ def create_barrel_plan(
             )
         ]
 
-# called one per day
 @router.post("/plan", response_model=List[BarrelOrder])
 def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
     """
@@ -171,16 +185,17 @@ def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
         row = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT gold, red_ml, green_ml, blue_ml 
+                SELECT gold, red_ml, green_ml, blue_ml, dark_ml
                 FROM global_inventory
                 """
             )
         ).one()
-
+        
         gold = row.gold
         red_ml = row.red_ml
         green_ml = row.green_ml
         blue_ml = row.blue_ml
+        dark_ml = row.dark_ml
 
     return create_barrel_plan(
         gold=gold,
@@ -188,6 +203,6 @@ def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
         current_red_ml=red_ml,
         current_green_ml=green_ml,
         current_blue_ml=blue_ml,
-        current_dark_ml=0,
+        current_dark_ml=dark_ml,
         wholesale_catalog=wholesale_catalog,
     )
