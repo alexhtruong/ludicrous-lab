@@ -90,19 +90,18 @@ def create_cart(new_cart: Customer):
     """
     Creates a new cart for a specific customer.
     """
-
-    customer_id = new_cart.customer_id
+    customer_name = new_cart.customer_name
     with db.engine.begin() as connection:
         cart_id = connection.execute(
             sqlalchemy.text(
                 """
-                INSERT INTO carts (customer_id)
-                VALUES (:customer_id)
+                INSERT INTO carts (customer_name)
+                VALUES (:customer_name)
                 RETURNING cart_id
                 """
             ),
             [{
-                "customer_id": customer_id
+                "customer_name": customer_name
             }]
         ).scalar_one()
     return CartCreateResponse(cart_id=cart_id)
@@ -144,8 +143,7 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
                 INSERT INTO cart_items (cart_id, sku, quantity)
                 VALUES (:cart_id, :sku, :quantity)
                 ON CONFLICT (cart_id, sku) DO UPDATE
-                SET quantity = quantity + :quantity
-                WHERE cart_items.is_checked_out = false
+                SET quantity = cart_items.quantity + :quantity
                 """
             ), 
             [{
