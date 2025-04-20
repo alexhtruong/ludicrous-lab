@@ -120,12 +120,34 @@ def create_bottle_plan(
     # Evenly distribute 50% of remaining capacity among potion types
     max_per_type = max(1, remaining_potion_count // (6 * 2))
 
+    available_liquids = {
+        "red_ml": red_ml,
+        "green_ml": green_ml,
+        "blue_ml": blue_ml,
+        "dark_ml": dark_ml
+    }
+
     for potion_name, recipe in POTION_TYPES.items():
+        # calculate how many potions we can make with current inventory
+        max_possible = calculate_max_potions(available_liquids, recipe)
+        if max_possible <= 0:
+            print(f"Skipping {potion_name} - not enough ingredients")
+            continue
+
+        quantity = min(max_possible, max_per_type)
+        
+        # subtract the used liquids from available inventory
+        for i, amount in enumerate(recipe):
+            if amount > 0:
+                color_ml = ML_COLUMNS[i]
+                used_amount = amount * 100 * quantity
+                available_liquids[color_ml] -= used_amount
+
         potion_type = [color * 100 for color in recipe]
         plans.append(
             PotionMixes(
                 potion_type=potion_type,
-                quantity=max_per_type,
+                quantity=quantity,
             )
         )
     
@@ -159,7 +181,7 @@ def get_bottle_plan():
         row = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT red_ml, green_ml, blue_ml, dark_ml
+                SELECT red_ml, green_ml, blue_ml, dark_ml, max_potion_capacity
                 FROM global_inventory
                 """
             )
@@ -168,12 +190,13 @@ def get_bottle_plan():
         green_ml = row.green_ml
         blue_ml = row.blue_ml
         dark_ml = row.dark_ml
+        max_potion_capacity = row.max_potion_capacity
 
         # get all current potions in the form of [(sku, quantity, ...), (sku, quantity, ...)]
         potions = connection.execute(
             sqlalchemy.text(
                 """
-                    SELECT sku, quantity, red_ml, green_ml, blue_ml, dark_ml 
+                    SELECT sku, quantity, red_ml, green_ml, blue_ml, dark_ml
                     FROM potions
                     WHERE is_active = TRUE AND quantity > 0
                 """
@@ -197,7 +220,7 @@ def get_bottle_plan():
         green_ml=green_ml,
         blue_ml=blue_ml,
         dark_ml=dark_ml,
-        maximum_potion_capacity=50,
+        maximum_potion_capacity=max_potion_capacity,
         current_potion_inventory=inventory,
     )
 
