@@ -121,12 +121,20 @@ def create_bottle_plan(
 
         if max_potions > 0:
             quantity = min(max_potions, maximum_potion_capacity)
-            
+            # with db.engine.begin() as connection:
+            #     potions = connection.execute(
+            #         sqlalchemy.text(
+            #             """
+            #             SELECT COALESCE(SUM(quantity), 0)
+            #             FROM potions
+            #             """
+            #         )
+            #     ).scalar_one()
             potion_type = [color * 100 for color in recipe]
             plans.append(
                 PotionMixes(
                     potion_type=potion_type,
-                    quantity=quantity,
+                    quantity=7, # TODO: fix later
                 )
             )
     print(f"create_bottle_plan PLANS: {plans}")
