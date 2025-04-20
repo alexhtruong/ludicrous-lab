@@ -103,12 +103,37 @@ def create_barrel_plan(
     )
 
     def would_exceed_barrel_capacity(barrel: Barrel) -> bool:
-            total_in_inventory = current_red_ml + current_green_ml + current_blue_ml + current_dark_ml
-            new_amount = total_in_inventory + (barrel.ml_per_barrel) # TODO: configure for multiple quantity barrels  
-            if new_amount > max_barrel_capacity:
-                print(f"skipping - would exceed barrel capacity")
-                return True
-            return False
+        total_in_inventory = current_red_ml + current_green_ml + current_blue_ml + current_dark_ml
+        new_amount = total_in_inventory + (barrel.ml_per_barrel) # TODO: configure for multiple quantity barrels  
+        if new_amount > max_barrel_capacity:
+            print(f"skipping - would exceed barrel capacity")
+            return True
+        return False
+    
+    def calculate_balance_score(barrel: Barrel) -> float:
+        current_levels = {
+            "red": current_red_ml,
+            "green": current_green_ml,
+            "blue": current_blue_ml,
+            "dark": current_dark_ml
+        }
+        avg_level = sum(current_levels) / 4
+
+        balance_improvement = 0
+        for i, (color, amount) in enumerate(current_levels.items()):
+            # how far is this color from the average levels of the current stock?
+            deficit = avg_level - amount
+            if deficit > 0:
+                # if the color is below the average, then check how much it helps
+                added_amount = barrel.ml_per_barrel * barrel.potion_type[i]
+                if added_amount > 0:
+                    # score higher if barrel adds to the colors we need
+                    # we take the min here because:
+                    # prevents overweighting: a barrel that provides 500ml when we only need 100ml isn't 5 times better than a barrel that provides exactly what we need
+                    # normalization: keeps scores between 0 and 1 for each color, making them easier to compare and combine
+                    balance_improvement += min(added_amount / deficit, 1.0)
+
+        return balance_improvement
 
     with db.engine.begin() as connection:
         potions = connection.execute(
@@ -135,35 +160,17 @@ def create_barrel_plan(
                 continue
             if would_exceed_barrel_capacity(barrel):
                 continue
-            # TODO: buying large yellow barrels fails the value test
             value_score = barrel.ml_per_barrel / barrel.price
-
-            # track low colors and their corresponding needs
-            low_colors = []
-            if current_red_ml < 500:
-                low_colors.append((0, "red"))
-            if current_green_ml < 500:
-                low_colors.append((1, "green"))
-            if current_blue_ml < 500:
-                low_colors.append((2, "blue"))
-            if current_dark_ml < 500:
-                low_colors.append((3, "dark"))
-            
-            print(f"LOW COLORS: {low_colors}")
-            if low_colors:
-                # calculate how well this barrel matches our needs
-                color_match_score = 0
-                for color_index, color_name in low_colors:
-                    color_match_score += barrel.potion_type[color_index]
-                print(f"COLOR MATCH SCORE: {color_match_score}")
-                if color_match_score > 0:
-                    valid_barrels.append(
-                        (barrel, value_score * color_match_score)
-                    )
+            balance_score = calculate_balance_score(barrel)
+            total_score = value_score * balance_score
+            print(f"total_score: {total_score}, value_score: {value_score}, balance_score: {balance_score}")
+            if total_score > 0:
+                valid_barrels.append((barrel, total_score))
 
         if not valid_barrels:
             return []
         print(valid_barrels)
+
         best_barrel, best_score = max(valid_barrels, key=lambda x: x[1]) # returns (Barrel, 0.8)
         print("BEST BARREL SKU: " + best_barrel.sku)
         return [
