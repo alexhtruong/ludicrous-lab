@@ -47,7 +47,8 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
     ml_used = {ml: 0 for ml in ML_COLUMNS}
     for delivered_potion in potions_delivered:
         for potion_name, potion_type in POTION_TYPES.items():
-            if delivered_potion.potion_type == potion_type:
+            converted_potion_type = [color * 100 for color in potion_type]
+            if delivered_potion.potion_type == converted_potion_type:
                 potion_quantities[potion_name] = delivered_potion.quantity
         
         for i, color_percent in enumerate(delivered_potion.potion_type):
@@ -75,16 +76,16 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
                 # upsert
                 sql = f"""
                     INSERT INTO potions (sku, name, quantity, red_ml, green_ml, blue_ml, dark_ml)
-                    VALUES (:sku, :name, :quantity, :red_ml, :green_ml, :blue_ml, :dark_ml)
+                    VALUES (:sku, :name, :add_quantity, :red_ml, :green_ml, :blue_ml, :dark_ml)
                     ON CONFLICT (sku) DO UPDATE
-                    SET quantity = quantity + :quantity
+                    SET quantity = potions.quantity + :add_quantity
                 """
                 potion_type = POTION_TYPES[potion_name] # [0.5, 0, 0.5, 0]... etc
-                name = potion_name.replace("_potions", "").replace("_", " "),  # e.g. "red_potions" -> "red potion"
+                name = potion_name.replace("_potions", "").replace("_", " ")  # e.g. "red_potions" -> "red potion"
                 params = {
                     "sku": f"{potion_name.upper()}_0",
                     "name" : name,
-                    "quantity": quantity,
+                    "add_quantity": quantity,
                     "red_ml": potion_type[0] * 100,
                     "green_ml": potion_type[1] * 100,
                     "blue_ml": potion_type[2] * 100,
@@ -104,39 +105,30 @@ def create_bottle_plan(
     maximum_potion_capacity: int,
     current_potion_inventory: List[PotionMixes],
 ) -> List[PotionMixes]:
-    # NOTE: set is_active potion for false on certain days?
     """
-    Creates a plan for bottling potions based on available liquids.
+    Creates a plan for bottling potions based on available liquids,
+    ensuring an even distribution for variety.
     """
     plans = []
-    available_liquids = {
-        "red_ml": red_ml,
-        "green_ml": green_ml,
-        "blue_ml": blue_ml,
-        "dark_ml": dark_ml
-    }
+    current_potion_count = sum([potion.quantity for potion in current_potion_inventory])
+    remaining_potion_count = maximum_potion_capacity - current_potion_count
+
+    if remaining_potion_count <= 0:
+        print(f"max potion capacity reached - current total: {current_potion_count}, Max: {maximum_potion_capacity}")
+        return []
+    
+    # Evenly distribute 50% of remaining capacity among potion types
+    max_per_type = max(1, remaining_potion_count // (6 * 2))
 
     for potion_name, recipe in POTION_TYPES.items():
-        max_potions = calculate_max_potions(available_liquids, recipe)
-
-        if max_potions > 0:
-            quantity = min(max_potions, maximum_potion_capacity)
-            # with db.engine.begin() as connection:
-            #     potions = connection.execute(
-            #         sqlalchemy.text(
-            #             """
-            #             SELECT COALESCE(SUM(quantity), 0)
-            #             FROM potions
-            #             """
-            #         )
-            #     ).scalar_one()
-            potion_type = [color * 100 for color in recipe]
-            plans.append(
-                PotionMixes(
-                    potion_type=potion_type,
-                    quantity=7, # TODO: fix later
-                )
+        potion_type = [color * 100 for color in recipe]
+        plans.append(
+            PotionMixes(
+                potion_type=potion_type,
+                quantity=max_per_type,
             )
+        )
+    
     print(f"create_bottle_plan PLANS: {plans}")
     return plans
 

@@ -7,7 +7,7 @@ POTION_TYPES: Dict[str, List[float]] = {
     "green_potions": [0.0, 1.0, 0.0, 0.0],
     "blue_potions": [0.0, 0.0, 1.0, 0.0],
     "dark_potions": [0.0, 0.0, 0.0, 1.0],
-    "purple_potions": [0.7, 0.0, 0.3, 0.0],  # red + blue
+    "purple_potions": [0.5, 0.0, 0.5, 0.0],  # red + blue
     "turquoise_potions": [0.0, 0.7, 0.3, 0.0],  # green + blue
 }
     # "shadow_potions": [0.3, 0.0, 0.3, 0.4],  # red + blue + dark

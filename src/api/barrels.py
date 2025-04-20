@@ -150,6 +150,7 @@ def create_barrel_plan(
         if not potions and current_red_ml >= 500 and current_green_ml >= 500 and current_blue_ml >= 500 and current_dark_ml >= 500:
             return []  # we have enough of everything
 
+
         valid_barrels = []
         for barrel in wholesale_catalog:
             print(f"evaluating barrel {barrel.sku}: price={barrel.price}, gold={gold}")
@@ -169,6 +170,17 @@ def create_barrel_plan(
                 valid_barrels.append((barrel, total_score))
 
         if not valid_barrels:
+            # if no valid barrels based on scoring, try random selection from affordable ones
+            affordable_barrels = [
+                barrel for barrel in wholesale_catalog 
+                if barrel.price <= gold 
+                and not barrel.sku.startswith('JUNK')
+                and not would_exceed_barrel_capacity(barrel)
+            ]
+            if affordable_barrels:
+                random_barrel = random.choice(affordable_barrels)
+                print(f"no optimal barrels found. randomly selected: {random_barrel.sku}")
+                return [BarrelOrder(sku=random_barrel.sku, quantity=1)]
             return []
         print(valid_barrels)
 
