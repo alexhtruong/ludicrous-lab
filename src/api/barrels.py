@@ -110,6 +110,7 @@ def create_barrel_plan(
             return True
         return False
     
+    # the goal of this function is to help spread out the purchasing of barrels such that we don't overstock on one certain liquid
     def calculate_balance_score(barrel: Barrel) -> float:
         current_levels = {
             "red": current_red_ml,
@@ -117,7 +118,7 @@ def create_barrel_plan(
             "blue": current_blue_ml,
             "dark": current_dark_ml
         }
-        avg_level = sum(current_levels) / 4
+        avg_level = sum(current_levels.values()) / 4
 
         balance_improvement = 0
         for i, (color, amount) in enumerate(current_levels.items()):
