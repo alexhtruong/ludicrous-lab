@@ -116,7 +116,6 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     print(
         f"cart_id: {cart_id}, item_sku: {item_sku}, cart_item: {cart_item}"
     )
-
     with db.engine.begin() as connection:
         # check if cart hasn't been checked out, then we can proceed
         cart_exists = connection.execute(
@@ -194,7 +193,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         total_potions_bought = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT COALESCE(SUM(quantity), 0) 
+                SELECT COALESCE(SUM(quantity), 0)
                 FROM cart_items
                 WHERE cart_id = :cart_id
                 """
@@ -209,28 +208,32 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 status_code=400,
                 detail="Cart is empty"
             )
-                
-        connection.execute(
-            sqlalchemy.text(
-                """
-                UPDATE carts
-                SET is_checked_out = true
-                WHERE cart_id = :cart_id
-                """
-            ),
-            [{"cart_id": cart_id}]
-        )
 
         total_gold_paid = total_potions_bought * 50  # TODO: assuming each potion costs 50 gold
         connection.execute(
             sqlalchemy.text(
                 """
+                WITH cart_update AS (
+                    UPDATE carts 
+                    SET is_checked_out = true
+                    WHERE cart_id = :cart_id
+                    RETURNING cart_id
+                ), inventory_update AS (
+                    UPDATE potions
+                    SET quantity = potions.quantity - c.quantity
+                    FROM cart_items c
+                    WHERE c.cart_id = :cart_id AND c.sku = potions.sku
+                    RETURNING potions.sku
+                )
                 UPDATE global_inventory
                 SET gold = gold + :total_gold_paid
-                RETURNING gold
+                RETURNING gold;
                 """
             ),
-            [{"total_gold_paid": total_gold_paid}]
+            [{
+                "total_gold_paid": total_gold_paid,
+                "cart_id": cart_id
+            }]
         )
 
     return CheckoutResponse(
