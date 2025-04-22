@@ -81,7 +81,7 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
                     SET quantity = potions.quantity + :add_quantity
                 """
                 potion_type = POTION_TYPES[potion_name] # [0.5, 0, 0.5, 0]... etc
-                name = potion_name.replace("_potions", "").replace("_", " ")  # e.g. "red_potions" -> "red potion"
+                name = potion_name.replace("_potions", " potion") # turqoise_potions -> turqoise potion
                 params = {
                     "sku": f"{potion_name.upper()}_0",
                     "name" : name,
