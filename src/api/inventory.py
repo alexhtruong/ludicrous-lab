@@ -104,7 +104,7 @@ def get_capacity_plan():
         elif gold >= 1000:
             if liquid_utilization > potion_utilization and liquid_utilization >= 0.8:
                 ml_capacity = 1
-            elif potion_utilization >= 0.8:
+            elif potion_utilization >= 0.65:
                 potion_capacity = 1
         print(f"potion_capacity: {potion_capacity}, ml_capacity: {ml_capacity}")
     return CapacityPlan(potion_capacity=potion_capacity, ml_capacity=ml_capacity)
