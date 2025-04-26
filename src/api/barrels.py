@@ -162,6 +162,8 @@ def create_barrel_plan(
                 continue
             if would_exceed_barrel_capacity(barrel):
                 continue
+            if barrel.potion_type == [0, 0, 0, 1.0]:
+                return [BarrelOrder(sku=barrel.sku, quantity=1)]
             value_score = barrel.ml_per_barrel / barrel.price
             balance_score = calculate_balance_score(barrel)
             total_score = value_score * balance_score
