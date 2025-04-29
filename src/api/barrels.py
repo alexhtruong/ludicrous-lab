@@ -147,9 +147,6 @@ def create_barrel_plan(
             )
         ).fetchall()
         print(f"BARREL PLAN POTIONS: {potions}")
-        if not potions and current_red_ml >= 500 and current_green_ml >= 500 and current_blue_ml >= 500 and current_dark_ml >= 500:
-            return []  # we have enough of everything
-
 
         valid_barrels = []
         for barrel in wholesale_catalog:
@@ -162,7 +159,7 @@ def create_barrel_plan(
                 continue
             if would_exceed_barrel_capacity(barrel):
                 continue
-            if barrel.potion_type == [0, 0, 0, 1.0]:
+            if barrel.potion_type == [0, 0, 0, 1.0] and current_dark_ml <= 3000:
                 return [BarrelOrder(sku=barrel.sku, quantity=1)]
             value_score = barrel.ml_per_barrel / barrel.price
             balance_score = calculate_balance_score(barrel)
