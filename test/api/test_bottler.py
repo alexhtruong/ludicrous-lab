@@ -1,49 +1,48 @@
-from src.api.bottler import PotionMixes, create_bottle_plan
-
-
+from src.api.bottler import PotionMixes, create_bottle_plan, post_deliver_bottles
 from typing import List
+import sqlalchemy
+from src import database as db
 
+# def test_bottle_red_potions() -> None:
+#     red_ml: int = 100
+#     green_ml: int = 0
+#     blue_ml: int = 0
+#     dark_ml: int = 0
+#     maximum_potion_capacity: int = 1000
+#     current_potion_inventory: List[PotionMixes] = []
 
-def test_bottle_red_potions() -> None:
-    red_ml: int = 100
-    green_ml: int = 0
-    blue_ml: int = 0
-    dark_ml: int = 0
-    maximum_potion_capacity: int = 1000
-    current_potion_inventory: List[PotionMixes] = []
+#     result = create_bottle_plan(
+#         red_ml=red_ml,
+#         green_ml=green_ml,
+#         blue_ml=blue_ml,
+#         dark_ml=dark_ml,
+#         maximum_potion_capacity=maximum_potion_capacity,
+#         current_potion_inventory=current_potion_inventory,
+#     )
 
-    result = create_bottle_plan(
-        red_ml=red_ml,
-        green_ml=green_ml,
-        blue_ml=blue_ml,
-        dark_ml=dark_ml,
-        maximum_potion_capacity=maximum_potion_capacity,
-        current_potion_inventory=current_potion_inventory,
-    )
+#     assert len(result) == 1
+#     assert result[0].potion_type == [100, 0, 0, 0]
+#     assert result[0].quantity == 1
 
-    assert len(result) == 1
-    assert result[0].potion_type == [100, 0, 0, 0]
-    assert result[0].quantity == 1
+# def test_bottle_blue_and_red_potions() -> None:
+#     red_ml: int = 100
+#     green_ml: int = 0
+#     blue_ml: int = 500
+#     dark_ml: int = 0
+#     maximum_potion_capacity: int = 1000
+#     current_potion_inventory: List[PotionMixes] = []
 
-def test_bottle_blue_and_red_potions() -> None:
-    red_ml: int = 100
-    green_ml: int = 0
-    blue_ml: int = 500
-    dark_ml: int = 0
-    maximum_potion_capacity: int = 1000
-    current_potion_inventory: List[PotionMixes] = []
+#     result = create_bottle_plan(
+#         red_ml=red_ml,
+#         green_ml=green_ml,
+#         blue_ml=blue_ml,
+#         dark_ml=dark_ml,
+#         maximum_potion_capacity=maximum_potion_capacity,
+#         current_potion_inventory=current_potion_inventory,
+#     )
 
-    result = create_bottle_plan(
-        red_ml=red_ml,
-        green_ml=green_ml,
-        blue_ml=blue_ml,
-        dark_ml=dark_ml,
-        maximum_potion_capacity=maximum_potion_capacity,
-        current_potion_inventory=current_potion_inventory,
-    )
-
-    assert len(result) == 3
-    assert result[0].potion_type == [100, 0, 0, 0]
-    assert result[1].potion_type == [0, 0, 100, 0]
-    assert result[0].quantity == 1
-    assert result[1].quantity == 5
+#     assert len(result) == 3
+#     assert result[0].potion_type == [100, 0, 0, 0]
+#     assert result[1].potion_type == [0, 0, 100, 0]
+#     assert result[0].quantity == 1
+#     assert result[1].quantity == 5

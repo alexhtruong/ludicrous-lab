@@ -84,8 +84,8 @@ def get_capacity_plan():
         max_barrel_capacity = row.max_barrel_capacity
         total_liquid_in_inventory = row.red_ml + row.green_ml + row.blue_ml + row.dark_ml
         
-        if max_potion_capacity >= 100 and max_barrel_capacity >= 30000:
-            return CapacityPlan(potion_capacity=0, ml_capacity=0)
+        if max_potion_capacity >= 200 and max_barrel_capacity >= 40000:
+            return CapacityPlan(potion_capacity=1, ml_capacity=0)
 
         total_potions_in_inventory = connection.execute(
             sqlalchemy.text(

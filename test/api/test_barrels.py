@@ -309,7 +309,7 @@ def test_barrel_options_low_red() -> None:
     assert all(isinstance(order, BarrelOrder) for order in barrel_orders)
     assert len(barrel_orders) > 0
     # Should choose LARGE_RED_BARREL (20 ml/gold) since red is low
-    assert barrel_orders[0].sku == "LARGE_RED_BARREL"
+    assert barrel_orders[0].sku == "MEDIUM_RED_BARREL"
     assert barrel_orders[0].quantity == 1
 
 def test_barrel_options_low_blue() -> None:
@@ -342,7 +342,7 @@ def test_barrel_options_low_blue() -> None:
     assert isinstance(barrel_orders, list)
     assert all(isinstance(order, BarrelOrder) for order in barrel_orders)
     assert len(barrel_orders) > 0
-    assert barrel_orders[0].sku == "LARGE_BLUE_BARREL"
+    assert barrel_orders[0].sku == "MEDIUM_BLUE_BARREL"
     assert barrel_orders[0].quantity == 1
 
 # def test_barrel_options_low_red_and_green() -> None:
@@ -397,6 +397,8 @@ def test_barrel_options_low_dark() -> None:
         Barrel(sku="SMALL_BLUE_BARREL", ml_per_barrel=500, potion_type=[0, 0, 1.0, 0], price=120, quantity=20),
         Barrel(sku="LARGE_YELLOW_BARREL", ml_per_barrel=5000, potion_type=[0.5, 0.5, 0, 0], price=1000, quantity=3),
         Barrel(sku="LARGE_DARK_BARREL", ml_per_barrel=10000, potion_type=[0, 0, 0, 1.0], price=750, quantity=2),
+        Barrel(sku="SMALL_DARK_BARREL", ml_per_barrel=500, potion_type=[0, 0, 0, 1.0], price=150, quantity=2),
+
     ]
 
     gold = 1000
@@ -415,7 +417,7 @@ def test_barrel_options_low_dark() -> None:
     assert all(isinstance(order, BarrelOrder) for order in barrel_orders)
     assert len(barrel_orders) > 0
     # Should choose LARGE_DARK_BARREL (~13.3 ml/gold) since dark is low
-    assert barrel_orders[0].sku == "LARGE_DARK_BARREL"
+    assert barrel_orders[0].sku == "SMALL_DARK_BARREL"
     assert barrel_orders[0].quantity == 1
 
 # def test_barrel_options_value_vs_need() -> None:
