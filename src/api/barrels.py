@@ -101,6 +101,28 @@ def create_barrel_plan(
     print(
         f"gold: {gold}, max_barrel_capacity: {max_barrel_capacity}, current_red_ml: {current_red_ml}, current_green_ml: {current_green_ml}, current_blue_ml: {current_blue_ml}, current_dark_ml: {current_dark_ml}, wholesale_catalog: {wholesale_catalog}"
     )
+    
+    current_levels = {
+        "red": current_red_ml,
+        "green": current_green_ml,
+        "blue": current_blue_ml,
+        "dark": current_dark_ml
+    }
+    target_per_liquid = max_barrel_capacity / 4
+    def compute_deficit():
+        return {
+            color: max(0, target_per_liquid - current_levels[color])
+            for color in current_levels
+        }
+
+    def calculate_balance_score(barrel: Barrel) -> float:
+        deficit = compute_deficit()
+        idx = 0
+        score = 0
+        for color in deficit:
+            score += barrel.potion_type[idx] * deficit[color]
+            idx += 1
+        return score
 
     def would_exceed_barrel_capacity(barrel: Barrel) -> bool:
         total_in_inventory = current_red_ml + current_green_ml + current_blue_ml + current_dark_ml
@@ -110,87 +132,40 @@ def create_barrel_plan(
             return True
         return False
     
-    # the goal of this function is to help spread out the purchasing of barrels such that we don't overstock on one certain liquid
-    def calculate_balance_score(barrel: Barrel) -> float:
-        current_levels = {
-            "red": current_red_ml,
-            "green": current_green_ml,
-            "blue": current_blue_ml,
-            "dark": current_dark_ml
-        }
-        avg_level = sum(current_levels.values()) / 4
+    valid_barrels = []
+    affordable_barrels = [
+        barrel for barrel in wholesale_catalog 
+        if barrel.price <= gold 
+        and not barrel.sku.startswith('JUNK')
+        and not would_exceed_barrel_capacity(barrel)
+    ]
+    for barrel in affordable_barrels:
+        print(f"evaluating barrel {barrel.sku}: price={barrel.price}, gold={gold}")
+        # value_score = barrel.ml_per_barrel / barrel.price
+        balance_score = calculate_balance_score(barrel)
+        # total_score = value_score * balance_score
+        total_score = balance_score
+        print(f"total_score: {total_score}")
+        if total_score > 0:
+            valid_barrels.append((barrel, total_score))
 
-        balance_improvement = 0
-        for i, (color, amount) in enumerate(current_levels.items()):
-            # how far is this color from the average levels of the current stock?
-            deficit = avg_level - amount
-            if deficit > 0:
-                # if the color is below the average, then check how much it helps
-                added_amount = barrel.ml_per_barrel * barrel.potion_type[i]
-                if added_amount > 0:
-                    # score higher if barrel adds to the colors we need
-                    # we take the min here because:
-                    # prevents overweighting: a barrel that provides 500ml when we only need 100ml isn't 5 times better than a barrel that provides exactly what we need
-                    # normalization: keeps scores between 0 and 1 for each color, making them easier to compare and combine
-                    balance_improvement += min(added_amount / deficit, 1.0)
+    if not valid_barrels:
+        # if no valid barrels based on scoring, try random selection from affordable ones
+        if affordable_barrels:
+            random_barrel = random.choice(affordable_barrels)
+            print(f"no optimal barrels found. randomly selected: {random_barrel.sku}")
+            return [BarrelOrder(sku=random_barrel.sku, quantity=1)]
+        return []
+    print(valid_barrels)
 
-        return balance_improvement
-
-    with db.engine.begin() as connection:
-        potions = connection.execute(
-            sqlalchemy.text(
-                """
-                SELECT sku, name, quantity, red_ml, green_ml, blue_ml, dark_ml
-                FROM potions
-                WHERE is_active = True and quantity < 5
-                """
-            )
-        ).fetchall()
-        print(f"BARREL PLAN POTIONS: {potions}")
-
-        valid_barrels = []
-        for barrel in wholesale_catalog:
-            print(f"evaluating barrel {barrel.sku}: price={barrel.price}, gold={gold}")
-            if barrel.price > gold:
-                print(f"skipping - too expensive")
-                continue
-            if barrel.sku.startswith('JUNK'):
-                print(f"skipping - junk barrel")
-                continue
-            if would_exceed_barrel_capacity(barrel):
-                continue
-            if barrel.potion_type == [0, 0, 0, 1.0] and current_dark_ml <= 3000:
-                return [BarrelOrder(sku=barrel.sku, quantity=1)]
-            value_score = barrel.ml_per_barrel / barrel.price
-            balance_score = calculate_balance_score(barrel)
-            total_score = value_score * balance_score
-            print(f"total_score: {total_score}, value_score: {value_score}, balance_score: {balance_score}")
-            if total_score > 0:
-                valid_barrels.append((barrel, total_score))
-
-        if not valid_barrels:
-            # if no valid barrels based on scoring, try random selection from affordable ones
-            affordable_barrels = [
-                barrel for barrel in wholesale_catalog 
-                if barrel.price <= gold 
-                and not barrel.sku.startswith('JUNK')
-                and not would_exceed_barrel_capacity(barrel)
-            ]
-            if affordable_barrels:
-                random_barrel = random.choice(affordable_barrels)
-                print(f"no optimal barrels found. randomly selected: {random_barrel.sku}")
-                return [BarrelOrder(sku=random_barrel.sku, quantity=1)]
-            return []
-        print(valid_barrels)
-
-        best_barrel, best_score = max(valid_barrels, key=lambda x: x[1]) # returns (Barrel, 0.8)
-        print("BEST BARREL SKU: " + best_barrel.sku)
-        return [
-            BarrelOrder(
-                sku=best_barrel.sku,
-                quantity=1 # TODO: configure but for now we can just buy
-            )
-        ]
+    best_barrel, best_score = max(valid_barrels, key=lambda x: x[1]) # returns (Barrel, 0.8)
+    print("BEST BARREL SKU: " + best_barrel.sku)
+    return [
+        BarrelOrder(
+            sku=best_barrel.sku,
+            quantity=1 # TODO: configure but for now we can just buy
+        )
+    ]
 
 @router.post("/plan", response_model=List[BarrelOrder])
 def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
