@@ -120,7 +120,7 @@ def create_barrel_plan(
         idx = 0
         score = 0
         for color in deficit:
-            score += barrel.potion_type[idx] * deficit[color]
+            score += barrel.potion_type[idx] * deficit[color] * barrel.ml_per_barrel
             idx += 1
         return score
 
@@ -174,7 +174,8 @@ def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
     and the shop returns back which barrels they'd like to purchase and how many.
     """
     print(f"barrel catalog: {wholesale_catalog}")
-
+    #liquid_ledger table
+    #gold_ledger table
     with db.engine.begin() as connection:
         row = connection.execute(
             sqlalchemy.text(
