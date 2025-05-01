@@ -34,30 +34,23 @@ def get_inventory():
     """
 
     with db.engine.begin() as connection:
-        row = connection.execute(
+        result = connection.execute(
             sqlalchemy.text(
-                """
-                SELECT gold, red_ml, green_ml, blue_ml, dark_ml
-                FROM global_inventory
-                """
+            """
+            SELECT 
+                (SELECT SUM(gold_delta) FROM gold_ledger) as gold,
+                (SELECT SUM(quantity_delta) FROM potion_ledger) as number_of_potions,
+                (SELECT 
+                    SUM(red_ml_delta) + SUM(green_ml_delta) + 
+                    SUM(blue_ml_delta) + SUM(dark_ml_delta) 
+                FROM liquid_ledger) as ml_in_barrels
+            """
             )
         ).one()
-        gold = row.gold
-        red_ml = row.red_ml
-        green_ml = row.green_ml
-        blue_ml = row.blue_ml
-        dark_ml = row.dark_ml
 
-        number_of_potions = connection.execute(
-            sqlalchemy.text(
-                """
-                SELECT COALESCE(SUM(quantity), 0)
-                from potions
-                """
-            )
-        ).scalar()
-
-        ml_in_barrels = red_ml + green_ml + blue_ml + dark_ml
+        gold = result.gold
+        number_of_potions = result.number_of_potions
+        ml_in_barrels = result.ml_in_barrels
 
     return InventoryAudit(number_of_potions=number_of_potions, ml_in_barrels=ml_in_barrels, gold=gold)
 
@@ -73,35 +66,33 @@ def get_capacity_plan():
     with db.engine.begin() as connection:
         row = connection.execute(
             sqlalchemy.text(
-                """
-                SELECT gold, red_ml, green_ml, blue_ml, dark_ml, max_potion_capacity, max_barrel_capacity
-                FROM global_inventory
-                """
+            """
+            SELECT 
+                (SELECT SUM(gold_delta) FROM gold_ledger) as gold,
+                (SELECT SUM(quantity_delta) FROM potion_ledger) as total_potions_in_inventory,
+                (SELECT 
+                    SUM(red_ml_delta) + SUM(green_ml_delta) + 
+                    SUM(blue_ml_delta) + SUM(dark_ml_delta) 
+                FROM liquid_ledger) as ml_in_barrels,
+                (SELECT max_potion_capacity, max_barrel_capacity FROM global_inventory),
+            """
             )
         ).one()
         gold = row.gold
         max_potion_capacity = row.max_potion_capacity
         max_barrel_capacity = row.max_barrel_capacity
         total_liquid_in_inventory = row.red_ml + row.green_ml + row.blue_ml + row.dark_ml
-        
-        if max_potion_capacity >= 200 and max_barrel_capacity >= 40000:
-            return CapacityPlan(potion_capacity=1, ml_capacity=0)
+        total_potions_in_inventory = row.total_potions_in_inventory
 
-        total_potions_in_inventory = connection.execute(
-            sqlalchemy.text(
-                """
-                SELECT COALESCE(SUM(quantity), 0)
-                FROM potions
-                """
-            )
-        ).scalar_one()
+        if max_potion_capacity <= 200 and max_barrel_capacity <= 40000:
+            return CapacityPlan(potion_capacity=1, ml_capacity=0)
         
         liquid_utilization = total_liquid_in_inventory / max_barrel_capacity
         potion_utilization = total_potions_in_inventory / max_potion_capacity
 
         ml_capacity = 0
         potion_capacity = 0
-        if gold >= 2000 and liquid_utilization >= 0.8 and potion_utilization >= 0.8:
+        if gold >= 3000 and liquid_utilization >= 0.8 and potion_utilization >= 0.8:
             ml_capacity = 1
             potion_capacity = 1
         elif gold >= 1000:
@@ -128,10 +119,45 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
     # TODO: check if order id already exists
     potion_capacity_increase = capacity_purchase.potion_capacity * 50
     ml_capacity_increase = capacity_purchase.ml_capacity * 10000
-    gold_consumed = (capacity_purchase.potion_capacity + capacity_purchase.ml_capacity) * 1000
+    gold_delta = (capacity_purchase.potion_capacity + capacity_purchase.ml_capacity) * 1000
 
     with db.engine.begin() as connection:
-        print(f"updating capacity in db: potion_capacity_increase: {potion_capacity_increase}, ml_capacity_increase: {ml_capacity_increase}, gold_consumed: {gold_consumed}")
+        existing_order = connection.execute(
+            sqlalchemy.text(
+                """
+                SELECT 1 FROM capacity_order_ledger WHERE :order_id = order_id
+                """
+            ), 
+            [
+                {
+                    "order_id": order_id,
+                }
+            ]
+        ).first()
+
+        if existing_order:
+            return
+
+        connection.execute(
+            sqlalchemy.text(
+                """
+                INSERT INTO capacity_order_ledger
+                (order_id, potion_capacity_increase, ml_capacity_increase, gold_delta)
+                VALUES (:order_id, :potion_capacity_increase, :ml_capacity_increase, :gold_delta)
+                """
+            ), 
+            [
+                {
+                    "order_id": order_id,
+                    "potion_capacity_increase": potion_capacity_increase,
+                    "ml_capacity_increase": ml_capacity_increase,
+                    "gold_delta": gold_delta
+                }
+            ]
+        )
+
+        # TODO: remove?
+        print(f"updating capacity in db: potion_capacity_increase: {potion_capacity_increase}, ml_capacity_increase: {ml_capacity_increase}, gold_consumed: {gold_delta}")
         connection.execute(
             sqlalchemy.text(
                 """
@@ -142,7 +168,7 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
                 """
             ),
             [{
-                "gold": gold_consumed,
+                "gold": gold_delta,
                 "potion_capacity_increase": potion_capacity_increase,
                 "ml_capacity_increase": ml_capacity_increase,
             }]
