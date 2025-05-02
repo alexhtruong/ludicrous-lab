@@ -115,8 +115,7 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
     - Each additional capacity unit costs 1000 gold.
     """
     print(f"capacity delivered: {capacity_purchase} order_id: {order_id}")
-    # TODO: to make this idempotent we make a new table with order_id, potion_capacity_increase, ml_capacity_increase, gold_consumed
-    # TODO: check if order id already exists
+    
     potion_capacity_increase = capacity_purchase.potion_capacity * 50
     ml_capacity_increase = capacity_purchase.ml_capacity * 10000
     gold_delta = (capacity_purchase.potion_capacity + capacity_purchase.ml_capacity) * 1000
@@ -128,11 +127,9 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
                 SELECT 1 FROM capacity_order_ledger WHERE :order_id = order_id
                 """
             ), 
-            [
-                {
-                    "order_id": order_id,
-                }
-            ]
+            {
+                "order_id": order_id,
+            }
         ).first()
 
         if existing_order:
@@ -146,14 +143,12 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
                 VALUES (:order_id, :potion_capacity_increase, :ml_capacity_increase, :gold_delta)
                 """
             ), 
-            [
-                {
-                    "order_id": order_id,
-                    "potion_capacity_increase": potion_capacity_increase,
-                    "ml_capacity_increase": ml_capacity_increase,
-                    "gold_delta": gold_delta
-                }
-            ]
+            {
+                "order_id": order_id,
+                "potion_capacity_increase": potion_capacity_increase,
+                "ml_capacity_increase": ml_capacity_increase,
+                "gold_delta": gold_delta
+            }
         )
 
         # TODO: remove?
@@ -167,9 +162,9 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
                 max_barrel_capacity = max_barrel_capacity + :ml_capacity_increase
                 """
             ),
-            [{
+            {
                 "gold": gold_delta,
                 "potion_capacity_increase": potion_capacity_increase,
                 "ml_capacity_increase": ml_capacity_increase,
-            }]
+            }
         )

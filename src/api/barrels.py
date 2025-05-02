@@ -6,7 +6,6 @@ import random
 import sqlalchemy
 from src.api import auth
 from src import database as db
-from src.api.potion_types import POTION_TYPES, ML_COLUMNS, POTION_COLUMNS
 
 router = APIRouter(
     prefix="/barrels",
@@ -45,10 +44,24 @@ class BarrelOrder(BaseModel):
 @dataclass
 class BarrelSummary:
     gold_paid: int
+    red_ml: int
+    green_ml: int
+    blue_ml: int
+    dark_ml: int
 
 
 def calculate_barrel_summary(barrels: List[Barrel]) -> BarrelSummary:
-    return BarrelSummary(gold_paid=sum(b.price * b.quantity for b in barrels))
+    red_ml = sum(barrel.ml_per_barrel * barrel.potion_type[0] * barrel.quantity for barrel in barrels)
+    green_ml = sum(barrel.ml_per_barrel * barrel.potion_type[1] * barrel.quantity for barrel in barrels)
+    blue_ml = sum(barrel.ml_per_barrel * barrel.potion_type[2] * barrel.quantity for barrel in barrels)
+    dark_ml = sum(barrel.ml_per_barrel * barrel.potion_type[3] * barrel.quantity for barrel in barrels)
+    gold_paid = sum(b.price * b.quantity for b in barrels)
+
+    return BarrelSummary(gold_paid=gold_paid,
+                        red_ml=red_ml,
+                        blue_ml=blue_ml,
+                        green_ml=green_ml,
+                        dark_ml=dark_ml)
 
 
 @router.post("/deliver/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -60,32 +73,61 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
     # NOTE we are receiving barrels of liquids in exchange for gold
     print(f"barrels delivered: {barrels_delivered} order_id: {order_id}")
 
-    delivery = calculate_barrel_summary(barrels_delivered)
-    ml_added = {col: 0 for col in ML_COLUMNS}
-    # ML_COLUMNS: red, green, blue, dark
-    for i, color_name in enumerate(ML_COLUMNS):
-        total = 0
-        # add all barrels by one color at a time
-        for b in barrels_delivered:
-            amount = b.ml_per_barrel * b.quantity * b.potion_type[i]
-            total += amount
-        ml_added[color_name] = total
-
+    summary = calculate_barrel_summary(barrels_delivered)
     with db.engine.begin() as connection:
-        sql = """
-            UPDATE global_inventory SET
-            gold = gold - :gold_paid,
-            red_ml = red_ml + :red_ml,
-            green_ml = green_ml + :green_ml,
-            blue_ml = blue_ml + :blue_ml,
-            dark_ml = dark_ml + :dark_ml
-        """
-        params = {"gold_paid": delivery.gold_paid}
-        # {red_ml: #, green_ml: #, ...}
-        params.update(ml_added)
-        print(f"post_deliver_barrels ml added: {ml_added}")
+        # check if order already exists
+        existing_order = connection.execute(
+            sqlalchemy.text(
+                """
+                SELECT 1 
+                FROM (
+                    SELECT order_id FROM liquid_ledger WHERE order_id = :order_id
+                    UNION
+                    SELECT order_id FROM gold_ledger WHERE order_id = :order_id
+                ) AS orders
+                """
+            ),
+            {
+                "order_id": order_id
+            }
+        ).first()
+
+        if existing_order:
+            return
+
+        # insert into ledger with data
         connection.execute(
-            sqlalchemy.text(sql), [params]
+            sqlalchemy.text(
+                """
+                INSERT INTO liquid_ledger
+                (order_id, red_ml_delta, green_ml_delta, blue_ml_delta, dark_ml_delta, transaction_type)
+                VALUES (:order_id, :red_ml_delta, :green_ml_delta, :blue_ml_delta, :dark_ml_delta, :transaction_type)
+                """
+            ), 
+            {
+                "order_id": order_id,
+                "red_ml_delta": summary.red_ml,
+                "green_ml_delta": summary.green_ml,
+                "blue_ml_delta": summary.blue_ml,
+                "dark_ml_delta": summary.dark_ml,
+                "transaction_type": "BARREL_DELIVERY"
+            }
+        )
+
+        # insert into gold ledger
+        connection.execute(
+            sqlalchemy.text(
+                """
+                INSERT INTO gold_ledger
+                (order_id, gold_delta, transaction_type)
+                VALUES (:order_id, :gold_delta, :transaction_type)
+                """
+            ),
+            {
+                "order_id": order_id,
+                "gold_delta": -summary.gold_paid,  # negative because we're paying
+                "transaction_type": "BARREL_PURCHASE"
+            }
         )
 
 
@@ -174,14 +216,18 @@ def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
     and the shop returns back which barrels they'd like to purchase and how many.
     """
     print(f"barrel catalog: {wholesale_catalog}")
-    #liquid_ledger table
-    #gold_ledger table
     with db.engine.begin() as connection:
         row = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT gold, red_ml, green_ml, blue_ml, dark_ml, max_barrel_capacity
-                FROM global_inventory
+                SELECT 
+                    (SELECT SUM(gold_delta) FROM gold_ledger) as gold,
+                    (SELECT max_barrel_capacity FROM global_inventory),
+                    SUM(red_ml_delta) as red_ml,
+                    SUM(green_ml_delta) as green_ml,
+                    SUM(blue_ml_delta) as blue_ml,
+                    SUM(dark_ml_delta) as dark_ml
+                FROM liquid_ledger
                 """
             )
         ).one()

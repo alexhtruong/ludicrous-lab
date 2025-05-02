@@ -31,6 +31,15 @@ class PotionMixes(BaseModel):
             raise ValueError("Sum of potion_type values must be exactly 100")
         return potion_type
 
+def calculate_liquid_used(ml_used: dict[str, int], potion: PotionMixes):
+    red_used = potion.potion_type[0] * potion.quantity
+    green_used = potion.potion_type[1] * potion.quantity
+    blue_used = potion.potion_type[2] * potion.quantity
+    dark_used = potion.potion_type[3] * potion.quantity
+    ml_used["red_ml"] -= red_used
+    ml_used["green_ml"] -= green_used
+    ml_used["blue_ml"] -= blue_used
+    ml_used["dark_ml"] -= dark_used
 
 @router.post("/deliver/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
@@ -41,61 +50,103 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
     # NOTE we are receiving bottles in exchange for liquid
     print(f"potions delivered: {potions_delivered} order_id: {order_id}")
     
-    # potion_quantities = {red_potions: #, blue_potions: #, ...}
-    potion_quantities = {col: 0 for col in POTION_COLUMNS}
-    # ml_used = {red_ml: #, blue_ml: #, ...}
-    ml_used = {ml: 0 for ml in ML_COLUMNS}
-    for delivered_potion in potions_delivered:
-        for potion_name, potion_type in POTION_TYPES.items():
-            converted_potion_type = [color * 100 for color in potion_type]
-            if delivered_potion.potion_type == converted_potion_type:
-                potion_quantities[potion_name] = delivered_potion.quantity
-        
-        for i, color_percent in enumerate(delivered_potion.potion_type):
-            color_ml = ML_COLUMNS[i]  # gets 'red_ml', 'green_ml', etc.
-            ml_used[color_ml] += color_percent * delivered_potion.quantity
-    print(f"post_deliver_bottles potion_quantities: {potion_quantities}")
-    print(f"post_deliver_bottles ml_used: {ml_used}")
+    # update potions_ledger, potions table, liquid_ledger, and liquids in global_inventory
     with db.engine.begin() as connection:
-        # subtracting ml_used 
-        sql = f"""
-            UPDATE global_inventory SET
-            red_ml = red_ml - :red_ml,
-            green_ml = green_ml - :green_ml,
-            blue_ml = blue_ml - :blue_ml,
-            dark_ml = dark_ml - :dark_ml
-        """
-        params = {col: ml_used[col] for col in ML_COLUMNS}
-        connection.execute(
-            sqlalchemy.text(sql), [params]
-        )
-
-        # updating potions
-        for potion_name, quantity in potion_quantities.items():
-            if quantity > 0:
-                # upsert
-                sql = f"""
-                    INSERT INTO potions (sku, name, quantity, red_ml, green_ml, blue_ml, dark_ml)
-                    VALUES (:sku, :name, :add_quantity, :red_ml, :green_ml, :blue_ml, :dark_ml)
-                    ON CONFLICT (sku) DO UPDATE
-                    SET quantity = potions.quantity + :add_quantity
+        existing_order = connection.execute(
+            sqlalchemy.text(
                 """
-                potion_type = POTION_TYPES[potion_name] # [0.5, 0, 0.5, 0]... etc
-                name = potion_name.replace("_potions", " potion") # turqoise_potions -> turqoise potion
-                params = {
-                    "sku": f"{potion_name.upper()}_0",
-                    "name" : name,
-                    "add_quantity": quantity,
-                    "red_ml": potion_type[0] * 100,
-                    "green_ml": potion_type[1] * 100,
-                    "blue_ml": potion_type[2] * 100,
-                    "dark_ml": potion_type[3] * 100,
-                }
-                print(f"updating potions in db: {params}")
-                connection.execute(
-                    sqlalchemy.text(sql), [params]
-                )
+                SELECT 1 
+                FROM (
+                    SELECT order_id FROM potion_ledger WHERE order_id = :order_id
+                    UNION 
+                    SELECT order_id FROM liquid_ledger WHERE order_id = :order_id
+                ) AS combined_ledgers
+                """
+            ),
+            {
+                "order_id": order_id,
+            }
+        ).first()
 
+        if existing_order:
+            print("ORDER ALREADY EXISTS IN EITHER POTION OR LIQUID LEDGER")
+            return
+        
+        ml_used = {"red_ml": 0, "green_ml": 0, "blue_ml": 0, "dark_ml": 0}
+        line_item_id = 1
+        for potion in potions_delivered:
+            calculate_liquid_used(ml_used)
+
+            sku = connection.execute(
+                sqlalchemy.text(
+                    """
+                    UPDATE potions SET
+                    quantity = quantity + :delivered_quantity
+                    WHERE red_ml = :red_ml AND green_ml = :green_ml AND blue_ml = :blue_ml AND dark_ml = :dark_ml
+                    RETURNING sku
+                    """
+                ),
+                {
+                    "delivered_quantity": potion.quantity,
+                    "red_ml": potion.potion_type[0],
+                    "green_ml": potion.potion_type[1],
+                    "blue_ml": potion.potion_type[2],
+                    "dark_ml": potion.potion_type[3],
+                }
+            ).scalar_one()
+
+            # insert into potions_ledger
+            connection.execute(
+                sqlalchemy.text(
+                    """
+                    INSERT INTO potions_ledger
+                    (order_id, line_item_id, sku, quantity_delta, transaction_type)
+                    VALUES (:order_id, :sku, :quantity_delta, :transaction_type)
+                    """
+                ),
+                {
+                    "order_id": order_id,
+                    "line_item_id": line_item_id,
+                    "sku": sku,
+                    "quantity_delta": potion.quantity,
+                    "transaction_type": "POTION_DELIVERY"
+                }
+            )
+            line_item_id += 1
+
+        # NOTE maybe remove later on b/c we're on a ledger-based system now?
+        # params = {col: ml_used[col] for col in ML_COLUMNS}
+        # connection.execute(
+        #     sqlalchemy.text(
+        #         """
+        #         UPDATE global_inventory SET
+        #         red_ml = red_ml - :red_ml,
+        #         green_ml = green_ml - :green_ml,
+        #         blue_ml = blue_ml - :blue_ml,
+        #         dark_ml = dark_ml - :dark_ml
+        #         """
+        #     ), params
+        # )
+        
+        print(f"ml_used: {ml_used}")
+        # insert into liquid_ledger
+        connection.execute(
+            sqlalchemy.text(
+                """
+                INSERT INTO liquid_ledger
+                (order_id, red_ml_delta, green_ml_delta, blue_ml_delta, dark_ml_delta, transaction_type)
+                VALUES (:order_id, :red_ml_delta, :green_ml_delta, :blue_ml_delta, :dark_ml_delta, :transaction_type)
+                """
+            ),
+            {
+                "order_id": order_id,
+                "red_ml_delta": ml_used["red_ml"],
+                "green_ml_delta": ml_used["green_ml"],
+                "blue_ml_delta": ml_used["blue_ml"],
+                "dark_ml_delta": ml_used["dark_ml"],
+                "transaction_type": "POTION_DELIVERY",
+            }
+        )
 
 def create_bottle_plan(
     red_ml: int,
@@ -181,8 +232,13 @@ def get_bottle_plan():
         row = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT red_ml, green_ml, blue_ml, dark_ml, max_potion_capacity
-                FROM global_inventory
+                SELECT 
+                    (SELECT max_potion_capacity FROM global_inventory)
+                    SUM(red_ml_delta) as red_ml,
+                    SUM(green_ml_delta) as green_ml,
+                    SUM(blue_ml_delta) as blue_ml,
+                    SUM(dark_ml_delta) as dark_ml
+                FROM liquid_ledger
                 """
             )
         ).one()

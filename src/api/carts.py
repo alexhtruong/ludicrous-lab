@@ -168,7 +168,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     """
     Handles the checkout process for a specific cart.
     """
-
+    #gold_ledger table
     with db.engine.begin() as connection:
         # check for non checked out cart, then proceed
         cart_exists = connection.execute(
