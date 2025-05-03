@@ -67,7 +67,7 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
         ).first()
 
         if existing_order:
-            print("ORDER ALREADY EXISTS IN EITHER POTION")
+            print("ORDER ALREADY EXISTS IN POTION LEDGER")
             return
         
         ml_used = {"red_ml": 0, "green_ml": 0, "blue_ml": 0, "dark_ml": 0}
