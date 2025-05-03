@@ -111,20 +111,6 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
                 }
             )
             line_item_id += 1
-
-        # NOTE maybe remove later on b/c we're on a ledger-based system now?
-        # params = {col: ml_used[col] for col in ML_COLUMNS}
-        # connection.execute(
-        #     sqlalchemy.text(
-        #         """
-        #         UPDATE global_inventory SET
-        #         red_ml = red_ml - :red_ml,
-        #         green_ml = green_ml - :green_ml,
-        #         blue_ml = blue_ml - :blue_ml,
-        #         dark_ml = dark_ml - :dark_ml
-        #         """
-        #     ), params
-        # )
         
         print(f"ml_used: {ml_used}")
         # insert into liquid_ledger

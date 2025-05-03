@@ -103,7 +103,7 @@ def create_cart(new_cart: Customer):
             ),
             [{
                 "customer_name": customer_name,
-                "customer_class": character_class,
+                "character_class": character_class,
             }]
         ).scalar_one()
     return CartCreateResponse(cart_id=cart_id)
