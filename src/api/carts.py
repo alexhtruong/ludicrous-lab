@@ -91,17 +91,19 @@ def create_cart(new_cart: Customer):
     Creates a new cart for a specific customer.
     """
     customer_name = new_cart.customer_name
+    character_class = new_cart.character_class
     with db.engine.begin() as connection:
         cart_id = connection.execute(
             sqlalchemy.text(
                 """
-                INSERT INTO carts (customer_name)
-                VALUES (:customer_name)
+                INSERT INTO carts (customer_name, character_class)
+                VALUES (:customer_name, :character_class)
                 RETURNING cart_id
                 """
             ),
             [{
-                "customer_name": customer_name
+                "customer_name": customer_name,
+                "customer_class": character_class,
             }]
         ).scalar_one()
     return CartCreateResponse(cart_id=cart_id)
@@ -168,74 +170,82 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     """
     Handles the checkout process for a specific cart.
     """
-    #gold_ledger table
+
     with db.engine.begin() as connection:
-        # check for non checked out cart, then proceed
-        cart_exists = connection.execute(
+        # check if cart exists and get totals
+        cart_info = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT EXISTS(
-                    SELECT 1 FROM carts 
-                    WHERE cart_id = :cart_id 
-                    AND is_checked_out = false
-                )
+                SELECT c.is_checked_out, COALESCE(SUM(quantity), 0) as total_potions_bought
+                FROM carts c
+                LEFT JOIN cart_items ci ON ci.cart_id = c.cart_id
+                WHERE c.cart_id = :cart_id
+                GROUP BY c.cart_id, c.is_checked_out
                 """
             ),
-            [{"cart_id": cart_id}]
-        ).scalar_one()
-        
-        if not cart_exists:
+            {
+                "cart_id": cart_id
+            }
+        ).first()
+
+        # debugging
+        if not cart_info:
             raise HTTPException(
-                status_code=404, 
-                detail="Cart not found or already checked out"
+                status_code=404,
+                detail="Cart not found"
             )
         
-        total_potions_bought = connection.execute(
-            sqlalchemy.text(
-                """
-                SELECT COALESCE(SUM(quantity), 0)
-                FROM cart_items
-                WHERE cart_id = :cart_id
-                """
-            ),
-            [{
-                "cart_id": cart_id
-            }]
-        ).scalar_one()
-
         if total_potions_bought == 0:
             raise HTTPException(
                 status_code=400,
-                detail="Cart is empty"
+                detail="Cannot checkout empty cart"
+            )
+        
+        total_potions_bought = cart_info.total_potions_bought
+        total_gold = total_potions_bought * 50  # NOTE assuming 50 gold per potion
+
+        if cart_info.is_checked_out:
+            return CheckoutResponse(
+                total_potions_bought=total_potions_bought,
+                total_gold_paid=total_gold
             )
 
-        total_gold_paid = total_potions_bought * 50  # TODO: assuming each potion costs 50 gold
         connection.execute(
             sqlalchemy.text(
                 """
-                WITH cart_update AS (
+                WITH gold_update AS (
+                    INSERT INTO gold_ledger 
+                    (order_id, gold_delta, transaction_type)
+                    VALUES (:cart_id, :gold_delta, 'POTION_SALE')
+                ), cart_update AS (
                     UPDATE carts 
                     SET is_checked_out = true
                     WHERE cart_id = :cart_id
-                    RETURNING cart_id
                 ), inventory_update AS (
                     UPDATE potions
                     SET quantity = potions.quantity - c.quantity
                     FROM cart_items c
                     WHERE c.cart_id = :cart_id AND c.sku = potions.sku
-                    RETURNING potions.sku
+                ), potion_ledger_update AS (
+                    INSERT INTO potion_ledger (order_id, line_item_id, sku, quantity_delta, transaction_type)
+                    SELECT 
+                        :cart_id,
+                        ROW_NUMBER() OVER () as line_item_id,  -- ROW_NUMBER() generates unique incrementing numbers for each potion in a specific cart(ex. 1,2,3,...)
+                        sku,
+                        -quantity, 
+                        'POTION_SALE'
+                    FROM cart_items
+                    WHERE cart_id = :cart_id
                 )
-                UPDATE global_inventory
-                SET gold = gold + :total_gold_paid
-                RETURNING gold;
+                SELECT 1
                 """
             ),
-            [{
-                "total_gold_paid": total_gold_paid,
-                "cart_id": cart_id
-            }]
+            {
+                "cart_id": cart_id,
+                "gold_delta": total_gold
+            }
         )
 
     return CheckoutResponse(
-        total_potions_bought=total_potions_bought, total_gold_paid=total_gold_paid
+        total_potions_bought=total_potions_bought, total_gold_paid=total_gold
     )
