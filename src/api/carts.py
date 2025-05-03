@@ -195,7 +195,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 detail="Cart not found"
             )
         
-        if total_potions_bought == 0:
+        if cart_info.total_potions_bought == 0:
             raise HTTPException(
                 status_code=400,
                 detail="Cannot checkout empty cart"
