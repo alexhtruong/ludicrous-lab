@@ -93,11 +93,11 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
                 }
             ).scalar_one()
 
-            # insert into potions_ledger
+            # insert into potion_ledger
             connection.execute(
                 sqlalchemy.text(
                     """
-                    INSERT INTO potions_ledger
+                    INSERT INTO potion_ledger
                     (order_id, line_item_id, sku, quantity_delta, transaction_type)
                     VALUES (:order_id, :sku, :quantity_delta, :transaction_type)
                     """
