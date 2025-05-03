@@ -74,7 +74,7 @@ def get_capacity_plan():
                     SUM(red_ml_delta) + SUM(green_ml_delta) + 
                     SUM(blue_ml_delta) + SUM(dark_ml_delta) 
                 FROM liquid_ledger) as ml_in_barrels,
-                (SELECT max_potion_capacity, max_barrel_capacity FROM global_inventory),
+                (SELECT max_potion_capacity, max_barrel_capacity FROM global_inventory)
             """
             )
         ).one()
