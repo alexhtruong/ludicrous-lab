@@ -233,7 +233,7 @@ def get_bottle_plan():
             sqlalchemy.text(
                 """
                 SELECT 
-                    (SELECT max_potion_capacity FROM global_inventory)
+                    (SELECT max_potion_capacity FROM global_inventory),
                     SUM(red_ml_delta) as red_ml,
                     SUM(green_ml_delta) as green_ml,
                     SUM(blue_ml_delta) as blue_ml,
