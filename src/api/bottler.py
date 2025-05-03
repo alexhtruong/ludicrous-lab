@@ -57,7 +57,9 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
                 """
                 SELECT 1 
                 FROM (
-                    SELECT order_id FROM potion_ledger WHERE order_id = :order_id
+                    SELECT order_id FROM potion_ledger WHERE order_id = :order_id AND transaction_type = 'POTION_DELIVERY'
+                    UNION
+                    SELECT order_id FROM liquid_ledger WHERE order_id = :order_id AND transaction_type = 'POTION_DELIVERY' 
                 ) AS combined_ledgers
                 """
             ),
@@ -67,7 +69,7 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
         ).first()
 
         if existing_order:
-            print("ORDER ALREADY EXISTS IN POTION LEDGER")
+            print("ORDER ALREADY EXISTS IN POTION LEDGER AND/OR LIQUID_LEDGER")
             return
         
         ml_used = {"red_ml": 0, "green_ml": 0, "blue_ml": 0, "dark_ml": 0}
@@ -99,7 +101,7 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
                     """
                     INSERT INTO potion_ledger
                     (order_id, line_item_id, sku, quantity_delta, transaction_type)
-                    VALUES (:order_id, :sku, :quantity_delta, :transaction_type)
+                    VALUES (:order_id, :line_item_id, :sku, :quantity_delta, :transaction_type)
                     """
                 ),
                 {

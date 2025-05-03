@@ -81,9 +81,9 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
                 """
                 SELECT 1 
                 FROM (
-                    SELECT order_id FROM liquid_ledger WHERE order_id = :order_id
+                    SELECT order_id FROM liquid_ledger WHERE order_id = :order_id AND transaction_type = 'BARREL_DELIVERY'
                     UNION
-                    SELECT order_id FROM gold_ledger WHERE order_id = :order_id
+                    SELECT order_id FROM gold_ledger WHERE order_id = :order_id AND transaction_type = 'BARREL_PURCHASE'
                 ) AS orders
                 """
             ),
