@@ -75,7 +75,7 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
         ml_used = {"red_ml": 0, "green_ml": 0, "blue_ml": 0, "dark_ml": 0}
         line_item_id = 1
         for potion in potions_delivered:
-            calculate_liquid_used(ml_used)
+            calculate_liquid_used(ml_used, potion)
 
             sku = connection.execute(
                 sqlalchemy.text(
