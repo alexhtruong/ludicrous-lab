@@ -74,13 +74,13 @@ def get_capacity_plan():
                     SUM(red_ml_delta) + SUM(green_ml_delta) + 
                     SUM(blue_ml_delta) + SUM(dark_ml_delta) 
                 FROM liquid_ledger) as ml_in_barrels,
-                (SELECT max_potion_capacity, max_barrel_capacity FROM global_inventory)
+                (SELECT max_potion_capacity, max_barrel_capacity FROM global_inventory) as capacities
             """
             )
         ).one()
         gold = row.gold
-        max_potion_capacity = row.max_potion_capacity
-        max_barrel_capacity = row.max_barrel_capacity
+        max_potion_capacity = row.capacities.max_potion_capacity
+        max_barrel_capacity = row.capacities.max_barrel_capacity
         total_liquid_in_inventory = row.red_ml + row.green_ml + row.blue_ml + row.dark_ml
         total_potions_in_inventory = row.total_potions_in_inventory
 
