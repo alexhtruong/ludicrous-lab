@@ -64,7 +64,7 @@ def get_capacity_plan():
     - Each additional capacity unit costs 1000 gold.
     """
     with db.engine.begin() as connection:
-        row = connection.execute(
+        inventory = connection.execute(
             sqlalchemy.text(
             """
             SELECT 
@@ -79,11 +79,11 @@ def get_capacity_plan():
             """
             )
         ).one()
-        gold = row.gold
-        max_potion_capacity = row.max_potion_capacity
-        max_barrel_capacity = row.max_barrel_capacity
-        total_liquid_in_inventory = row.red_ml + row.green_ml + row.blue_ml + row.dark_ml
-        total_potions_in_inventory = row.total_potions_in_inventory
+        gold = inventory.gold
+        max_potion_capacity = inventory.max_potion_capacity
+        max_barrel_capacity = inventory.max_barrel_capacity
+        total_liquid_in_inventory = inventory.ml_in_barrels
+        total_potions_in_inventory = inventory.total_potions_in_inventory
 
         if max_potion_capacity <= 200 and max_barrel_capacity <= 40000:
             return CapacityPlan(potion_capacity=1, ml_capacity=0)
