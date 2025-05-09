@@ -85,8 +85,8 @@ def get_capacity_plan():
         total_liquid_in_inventory = inventory.ml_in_barrels
         total_potions_in_inventory = inventory.total_potions_in_inventory
 
-        if max_potion_capacity <= 200 and max_barrel_capacity <= 40000:
-            return CapacityPlan(potion_capacity=1, ml_capacity=0)
+        if max_potion_capacity <= 300:
+            return CapacityPlan(potion_capacity=3, ml_capacity=0)
         
         liquid_utilization = total_liquid_in_inventory / max_barrel_capacity
         potion_utilization = total_potions_in_inventory / max_potion_capacity
