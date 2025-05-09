@@ -119,7 +119,7 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
     
     potion_capacity_increase = capacity_purchase.potion_capacity * 50
     ml_capacity_increase = capacity_purchase.ml_capacity * 10000
-    gold_delta = (capacity_purchase.potion_capacity + capacity_purchase.ml_capacity) * 1000
+    gold_delta = -(capacity_purchase.potion_capacity + capacity_purchase.ml_capacity) * 1000
 
     with db.engine.begin() as connection:
         existing_order = connection.execute(
@@ -139,9 +139,14 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
         connection.execute(
             sqlalchemy.text(
                 """
-                INSERT INTO capacity_order_ledger
-                (order_id, potion_capacity_increase, ml_capacity_increase, gold_delta)
-                VALUES (:order_id, :potion_capacity_increase, :ml_capacity_increase, :gold_delta)
+                WITH capacity_insert AS (
+                    INSERT INTO capacity_order_ledger
+                    (order_id, potion_capacity_increase, ml_capacity_increase, gold_delta)
+                    VALUES (:order_id, :potion_capacity_increase, :ml_capacity_increase, :gold_delta)
+                )
+                INSERT INTO gold_ledger 
+                (order_id, gold_delta, transaction_type)
+                VALUES (:order_id, :gold_delta, 'INVENTORY_UPGRADE')
                 """
             ), 
             {
@@ -152,20 +157,4 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
             }
         )
 
-        # TODO: remove?
         print(f"updating capacity in db: potion_capacity_increase: {potion_capacity_increase}, ml_capacity_increase: {ml_capacity_increase}, gold_consumed: {gold_delta}")
-        connection.execute(
-            sqlalchemy.text(
-                """
-                UPDATE global_inventory SET
-                gold = gold - :gold,
-                max_potion_capacity = max_potion_capacity + :potion_capacity_increase,
-                max_barrel_capacity = max_barrel_capacity + :ml_capacity_increase
-                """
-            ),
-            {
-                "gold": gold_delta,
-                "potion_capacity_increase": potion_capacity_increase,
-                "ml_capacity_increase": ml_capacity_increase,
-            }
-        )

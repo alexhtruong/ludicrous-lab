@@ -4,7 +4,6 @@ from typing import List
 from src.api import auth
 from src import database as db
 import sqlalchemy
-from src.api.potion_types import POTION_TYPES, POTION_COLUMNS, ML_COLUMNS
 
 router = APIRouter(
     prefix="/bottler",
@@ -50,7 +49,7 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
     # NOTE we are receiving bottles in exchange for liquid
     print(f"potions delivered: {potions_delivered} order_id: {order_id}")
     
-    # update potions_ledger, potions table, liquid_ledger, and liquids in global_inventory
+    # update potions_ledger, liquid_ledger
     with db.engine.begin() as connection:
         existing_order = connection.execute(
             sqlalchemy.text(
@@ -77,17 +76,19 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
         for potion in potions_delivered:
             calculate_liquid_used(ml_used, potion)
 
+            # grab corresponding potion sku
             sku = connection.execute(
                 sqlalchemy.text(
                     """
-                    UPDATE potions SET
-                    quantity = quantity + :delivered_quantity
-                    WHERE red_ml = :red_ml AND green_ml = :green_ml AND blue_ml = :blue_ml AND dark_ml = :dark_ml
-                    RETURNING sku
+                    SELECT sku
+                    FROM potions
+                    WHERE red_ml = :red_ml 
+                    AND green_ml = :green_ml 
+                    AND blue_ml = :blue_ml 
+                    AND dark_ml = :dark_ml
                     """
                 ),
                 {
-                    "delivered_quantity": potion.quantity,
                     "red_ml": potion.potion_type[0],
                     "green_ml": potion.potion_type[1],
                     "blue_ml": potion.potion_type[2],
@@ -154,57 +155,85 @@ def create_bottle_plan(
         print(f"max potion capacity reached - current total: {current_potion_count}, Max: {maximum_potion_capacity}")
         return []
     
-    # Evenly distribute 50% of remaining capacity among potion types
-    max_per_type = max(1, remaining_potion_count // (6 * 2))
-
     available_liquids = {
         "red_ml": red_ml,
         "green_ml": green_ml,
         "blue_ml": blue_ml,
         "dark_ml": dark_ml
     }
-
-    for potion_name, recipe in POTION_TYPES.items():
-        # calculate how many potions we can make with current inventory
-        max_possible = calculate_max_potions(available_liquids, recipe)
-        if max_possible <= 0:
-            print(f"Skipping {potion_name} - not enough ingredients")
-            continue
-
-        quantity = min(max_possible, max_per_type)
-        
-        # subtract the used liquids from available inventory
-        for i, amount in enumerate(recipe):
-            if amount > 0:
-                color_ml = ML_COLUMNS[i]
-                used_amount = amount * 100 * quantity
-                available_liquids[color_ml] -= used_amount
-
-        potion_type = [color * 100 for color in recipe]
-        plans.append(
-            PotionMixes(
-                potion_type=potion_type,
-                quantity=quantity,
+    
+    with db.engine.begin() as connection:
+        active_potions = connection.execute(
+            sqlalchemy.text(
+                """
+                SELECT p.red_ml, p.green_ml, p.blue_ml, p.dark_ml,
+                COALESCE(SUM(quantity_delta), 0) as current_quantity
+                FROM potions p
+                LEFT JOIN potion_ledger pl ON pl.sku = p.sku
+                WHERE p.is_active = TRUE
+                GROUP BY p.red_ml, p.green_ml, p.blue_ml, p.dark_ml
+                """
             )
-        )
-    
-    print(f"create_bottle_plan PLANS: {plans}")
-    return plans
+        ).all()
 
-def calculate_max_potions(available: dict, recipe: List[float]) -> int:
-    """Calculate maximum potions possible with given recipe and liquids."""
-    possible_quantities = []
-    # (0, [0.5, 0.5, 0, 0])...
-    for i, amount in enumerate(recipe):
-        if amount > 0: 
-            color_ml = ML_COLUMNS[i] # "red_ml, green_ml, etc"
-            possible = int(available[color_ml] / (amount * 100))
-            possible_quantities.append(possible)
-    
-    if possible_quantities:
-        return min(possible_quantities)
-    
-    return 0
+        if len(active_potions) == 0:
+            return []
+        
+        # evenly divide so that they have a equal max cap
+        target_quantity = maximum_potion_capacity // len(active_potions)
+
+        for potion in active_potions:
+            needed_quantity = target_quantity - potion.current_quantity
+            if needed_quantity <= 0:
+                continue
+
+            required_red = (potion.red_ml / 100) * needed_quantity
+            required_green = (potion.green_ml / 100) * needed_quantity
+            required_blue = (potion.blue_ml / 100) * needed_quantity
+            required_dark = (potion.dark_ml / 100) * needed_quantity
+
+            # check if we have enough liquid
+            if (required_red > available_liquids["red_ml"] or
+                required_green > available_liquids["green_ml"] or
+                required_blue > available_liquids["blue_ml"] or
+                required_dark > available_liquids["dark_ml"]):
+                
+                # calculate max amount possible based on available liquids
+                # the minimium will be the limiting factor
+                possible_quantity = min(
+                    available_liquids["red_ml"] // potion.red_ml if potion.red_ml > 0 else float('inf'),
+                    available_liquids["green_ml"] // potion.green_ml if potion.green_ml > 0 else float('inf'),
+                    available_liquids["blue_ml"] // potion.blue_ml if potion.blue_ml > 0 else float('inf'),
+                    available_liquids["dark_ml"] // potion.dark_ml if potion.dark_ml > 0 else float('inf')
+                )
+                
+                if possible_quantity <= 0:
+                    continue
+                
+                needed_quantity = min(needed_quantity, possible_quantity)
+
+            recipe = [
+                potion.red_ml,
+                potion.green_ml,
+                potion.blue_ml,
+                potion.dark_ml
+            ]
+            
+            available_liquids["red_ml"] -= recipe[0] * needed_quantity
+            available_liquids["green_ml"] -= recipe[1] * needed_quantity
+            available_liquids["blue_ml"] -= recipe[2] * needed_quantity
+            available_liquids["dark_ml"] -= recipe[3] * needed_quantity
+
+            plans.append(
+                PotionMixes(
+                    potion_type=recipe,
+                    quantity=needed_quantity
+                )
+            )
+
+        print(f"bottle_plan: {plans}")
+        print(f"remaining liquids: {available_liquids}")
+        return plans
 
 @router.post("/plan", response_model=List[PotionMixes])
 def get_bottle_plan():
@@ -238,18 +267,26 @@ def get_bottle_plan():
         potions = connection.execute(
             sqlalchemy.text(
                 """
-                    SELECT sku, quantity, red_ml, green_ml, blue_ml, dark_ml
-                    FROM potions
-                    WHERE is_active = TRUE AND quantity > 0
+                    SELECT 
+                        p.sku,
+                        COALESCE(SUM(pl.quantity_delta), 0) AS quantity,
+                        p.red_ml,
+                        p.green_ml, 
+                        p.blue_ml, 
+                        p.dark_ml
+                    FROM potion_ledger pl
+                    LEFT JOIN potions p ON p.sku = pl.sku
+                    WHERE quantity > 0
+                    GROUP BY p.sku, p.red_ml, p.green_ml, p.blue_ml, p.dark_ml
                 """
             )
         ).all()
         for potion in potions:
             quantity = potion.quantity
-            r = potion[2]
-            g = potion[3]
-            b = potion[4]
-            d = potion[5]
+            r = potion.red_ml
+            g = potion.green_ml
+            b = potion.blue_ml
+            d = potion.dark_ml
             inventory.append(
                 PotionMixes(
                     potion_type=[r, g, b, d],

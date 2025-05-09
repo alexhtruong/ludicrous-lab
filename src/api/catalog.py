@@ -23,23 +23,34 @@ class CatalogItem(BaseModel):
 def create_catalog() -> List[CatalogItem]:
     catalog = []
     with db.engine.begin() as connection: 
-        # get all current potions in the form of [(sku, name, ...), (sku, name, ...)]
+        #[(sku, name, ...), (sku, name, ...)]
         potions = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT sku, name, quantity, price, red_ml, green_ml, blue_ml, dark_ml
-                FROM potions
-                WHERE is_active = TRUE AND quantity > 0
+                SELECT 
+                    p.sku,
+                    p.name,
+                    COALESCE(SUM(pl.quantity_delta), 0) AS quantity,
+                    p.price, 
+                    p.red_ml, 
+                    p.green_ml, 
+                    p.blue_ml, 
+                    p.dark_ml
+                FROM potions p
+                LEFT JOIN potion_ledger pl ON pl.sku = p.sku
+                WHERE is_active = TRUE
+                GROUP BY p.sku, p.name, p.price, p.red_ml, p.green_ml, p.blue_ml, p.dark_ml
+                HAVING COALESCE(SUM(pl.quantity_delta), 0) > 0
                 """
             )
         ).all()
 
         for potion in potions:
-            sku = potion[0]
-            name = potion[1]
-            quantity = potion[2]
-            price = potion[3]
-            potion_type = [potion[4], potion[5], potion[6], potion[7]]  # [r, g, b, d]
+            sku = potion.sku
+            name = potion.name
+            quantity = potion.quantity
+            price = potion.price
+            potion_type = [potion.red_ml, potion.green_ml, potion.blue_ml, potion.dark_ml]  # [r, g, b, d]
             catalog.append(
                 CatalogItem(
                     sku=sku,
