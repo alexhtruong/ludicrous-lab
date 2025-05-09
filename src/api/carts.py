@@ -223,6 +223,30 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 detail="Cannot checkout empty cart"
             )
         
+        inventory_check = connection.execute(
+            sqlalchemy.text(
+                """
+                WITH cart_totals AS (
+                    SELECT ci.sku, ci.quantity as requested_quantity
+                    FROM cart_items ci
+                    WHERE ci.cart_id = :cart_id
+                )
+                SELECT ct.sku, ct.requested_quantity, COALESCE(SUM(pl.quantity_delta), 0) as available_quantity
+                FROM cart_totals ct
+                LEFT JOIN potion_ledger pl ON pl.sku = ct.sku
+                GROUP BY ct.sku, ct.requested_quantity
+                HAVING COALESCE(SUM(pl.quantity_delta), 0) < ct.requested_quantity
+                """
+            ),
+            {"cart_id": cart_id}
+        ).all()
+
+        if inventory_check:
+            raise HTTPException(
+                status_code=400,
+                detail="Insufficient inventory for checkout"
+            )
+        
         total_potions_bought = cart_info.total_potions_bought
         total_gold = cart_info.total_gold 
 
