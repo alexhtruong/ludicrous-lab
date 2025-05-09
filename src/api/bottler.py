@@ -147,7 +147,7 @@ def create_bottle_plan(
     Creates a plan for bottling potions based on available liquids,
     ensuring an even distribution for variety.
     """
-    plans = []
+    plans: List[PotionMixes] = []
     current_potion_count = sum([potion.quantity for potion in current_potion_inventory])
     remaining_potion_count = maximum_potion_capacity - current_potion_count
 
@@ -163,15 +163,29 @@ def create_bottle_plan(
     }
     
     with db.engine.begin() as connection:
+        all_potion_quantities = connection.execute(
+            sqlalchemy.text(
+                """
+                SELECT COALESCE(SUM(pl.quantity_delta), 0) as total_existing
+                FROM potions p
+                LEFT JOIN potion_ledger pl ON pl.sku = p.sku
+                """
+            )
+        ).scalar()
+
         active_potions = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT p.red_ml, p.green_ml, p.blue_ml, p.dark_ml,
-                COALESCE(SUM(quantity_delta), 0) as current_quantity
+                SELECT p.sku, 
+                    p.red_ml, 
+                    p.green_ml, 
+                    p.blue_ml, 
+                    p.dark_ml,
+                    COALESCE(SUM(pl.quantity_delta), 0) as total_quantity
                 FROM potions p
                 LEFT JOIN potion_ledger pl ON pl.sku = p.sku
-                WHERE p.is_active = TRUE
-                GROUP BY p.red_ml, p.green_ml, p.blue_ml, p.dark_ml
+                WHERE p.is_active = true
+                GROUP BY p.sku, p.red_ml, p.green_ml, p.blue_ml, p.dark_ml
                 """
             )
         ).all()
@@ -180,10 +194,10 @@ def create_bottle_plan(
             return []
         
         # evenly divide so that they have a equal max cap
-        target_quantity = maximum_potion_capacity // len(active_potions)
-
+        remaining_space = maximum_potion_capacity - all_potion_quantities
+        target_quantity = remaining_space // len(active_potions)
         for potion in active_potions:
-            needed_quantity = target_quantity - potion.current_quantity
+            needed_quantity = target_quantity - potion.current_quantity,
             if needed_quantity <= 0:
                 continue
 
@@ -230,9 +244,12 @@ def create_bottle_plan(
                     quantity=needed_quantity
                 )
             )
-
+        
         print(f"bottle_plan: {plans}")
         print(f"remaining liquids: {available_liquids}")
+        plans_potion_count = sum(potion.quantity for potion in plans)
+        if plans_potion_count + current_potion_count > maximum_potion_capacity:
+            return []
         return plans
 
 @router.post("/plan", response_model=List[PotionMixes])
