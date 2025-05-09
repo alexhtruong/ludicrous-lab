@@ -197,7 +197,7 @@ def create_bottle_plan(
         remaining_space = maximum_potion_capacity - all_potion_quantities
         target_quantity = remaining_space // len(active_potions)
         for potion in active_potions:
-            needed_quantity = target_quantity - potion.current_quantity,
+            needed_quantity = target_quantity - potion.total_quantity
             if needed_quantity <= 0:
                 continue
 
