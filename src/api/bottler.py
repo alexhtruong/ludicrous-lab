@@ -291,10 +291,10 @@ def get_bottle_plan():
                         p.green_ml, 
                         p.blue_ml, 
                         p.dark_ml
-                    FROM potion_ledger pl
-                    LEFT JOIN potions p ON p.sku = pl.sku
-                    WHERE quantity > 0
+                    FROM potions p
+                    LEFT JOIN potion_ledger pl ON p.sku = pl.sku
                     GROUP BY p.sku, p.red_ml, p.green_ml, p.blue_ml, p.dark_ml
+                    HAVING COALESCE(SUM(pl.quantity_delta), 0) > 0
                 """
             )
         ).all()
