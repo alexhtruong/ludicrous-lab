@@ -253,6 +253,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                     FROM cart_items
                     WHERE cart_id = :cart_id
                 )
+                SELECT 1
                 """
             ),
             {
