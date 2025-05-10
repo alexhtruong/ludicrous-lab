@@ -212,15 +212,15 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
 
         # debugging
         if not cart_info:
-            raise HTTPException(
-                status_code=404,
-                detail="Cart not found"
+            return CheckoutResponse(
+                total_potions_bought=0,
+                total_gold_paid=0
             )
         
         if cart_info.total_potions_bought == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot checkout empty cart"
+            return CheckoutResponse(
+                total_potions_bought=0,
+                total_gold_paid=0
             )
         
         inventory_check = connection.execute(
@@ -242,9 +242,9 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         ).all()
 
         if inventory_check:
-            raise HTTPException(
-                status_code=400,
-                detail="Insufficient inventory for checkout"
+            return CheckoutResponse(
+                total_potions_bought=0,
+                total_gold_paid=0
             )
         
         total_potions_bought = cart_info.total_potions_bought
@@ -255,6 +255,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 total_potions_bought=total_potions_bought,
                 total_gold_paid=total_gold
             )
+        
         connection.execute(
             sqlalchemy.text(
                 """
