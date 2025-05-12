@@ -38,11 +38,11 @@ def get_inventory():
             sqlalchemy.text(
             """
             SELECT 
-                (SELECT SUM(gold_delta) FROM gold_ledger) as gold,
-                (SELECT SUM(quantity_delta) FROM potion_ledger) as number_of_potions,
+                (SELECT COALESCE(SUM(gold_delta), 0) FROM gold_ledger) as gold,
+                (SELECT COALESCE(SUM(quantity_delta), 0) FROM potion_ledger) as number_of_potions,
                 (SELECT 
-                    SUM(red_ml_delta) + SUM(green_ml_delta) + 
-                    SUM(blue_ml_delta) + SUM(dark_ml_delta) 
+                    COALESCE(SUM(red_ml_delta), 0) + COALESCE(SUM(green_ml_delta), 0) + 
+                    COALESCE(SUM(blue_ml_delta), 0) + COALESCE(SUM(dark_ml_delta), 0) 
                 FROM liquid_ledger) as ml_in_barrels
             """
             )
@@ -51,7 +51,7 @@ def get_inventory():
         gold = result.gold
         number_of_potions = result.number_of_potions
         ml_in_barrels = result.ml_in_barrels
-
+        print(f"number_of_potions: {number_of_potions}, ml_in_barrels: {ml_in_barrels}, gold: {gold}", flush=True)
     return InventoryAudit(number_of_potions=number_of_potions, ml_in_barrels=ml_in_barrels, gold=gold)
 
 
@@ -68,25 +68,31 @@ def get_capacity_plan():
             sqlalchemy.text(
             """
             SELECT 
-                (SELECT SUM(gold_delta) FROM gold_ledger) as gold,
-                (SELECT SUM(quantity_delta) FROM potion_ledger) as total_potions_in_inventory,
+                (SELECT COALESCE(SUM(gold_delta), 0) FROM gold_ledger) as gold,
+                (SELECT COALESCE(SUM(quantity_delta), 0) FROM potion_ledger) as total_potions_in_inventory,
                 (SELECT 
-                    SUM(red_ml_delta) + SUM(green_ml_delta) + 
-                    SUM(blue_ml_delta) + SUM(dark_ml_delta) 
+                    COALESCE(SUM(red_ml_delta), 0) + COALESCE(SUM(green_ml_delta), 0) + 
+                    COALESCE(SUM(blue_ml_delta), 0) + COALESCE(SUM(dark_ml_delta), 0) 
                 FROM liquid_ledger) as ml_in_barrels,
-                (SELECT max_potion_capacity FROM global_inventory) as max_potion_capacity,
-                (SELECT max_barrel_capacity FROM global_inventory) as max_barrel_capacity
             """
             )
         ).one()
         gold = inventory.gold
-        max_potion_capacity = inventory.max_potion_capacity
-        max_barrel_capacity = inventory.max_barrel_capacity
         total_liquid_in_inventory = inventory.ml_in_barrels
         total_potions_in_inventory = inventory.total_potions_in_inventory
 
-        if max_potion_capacity <= 300:
-            return CapacityPlan(potion_capacity=3, ml_capacity=0)
+        capacity = connection.execute(
+            sqlalchemy.text(
+                """
+                SELECT 
+                COALESCE(SUM(potion_capacity_increase), 10000) AS max_potion_capacity,
+                COALESCE(SUM(ml_capacity_increase), 10000) AS max_barrel_capacity
+                FROM capacity_order_ledger
+                """
+            )
+        ).one()
+        max_potion_capacity = capacity.max_potion_capacity
+        max_barrel_capacity = capacity.max_barrel_capacity
         
         liquid_utilization = total_liquid_in_inventory / max_barrel_capacity
         potion_utilization = total_potions_in_inventory / max_potion_capacity
@@ -99,7 +105,7 @@ def get_capacity_plan():
         elif gold >= 1000:
             if liquid_utilization > potion_utilization and liquid_utilization >= 0.8:
                 ml_capacity = 1
-            elif potion_utilization >= 0.65:
+            elif potion_utilization >= 0.7:
                 potion_capacity = 1
         print(f"potion_capacity: {potion_capacity}, ml_capacity: {ml_capacity}")
     return CapacityPlan(potion_capacity=potion_capacity, ml_capacity=ml_capacity)
