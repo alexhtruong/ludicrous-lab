@@ -187,7 +187,6 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                     LEFT JOIN cart_items ci ON ci.cart_id = c.cart_id
                     LEFT JOIN potions p ON p.sku = ci.sku
                     WHERE c.cart_id = :cart_id
-                    FOR UPDATE
                     GROUP BY c.cart_id, c.is_checked_out
                     """
                 ),
