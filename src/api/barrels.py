@@ -221,12 +221,12 @@ def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
             sqlalchemy.text(
                 """
                 SELECT 
-                    (SELECT SUM(gold_delta) FROM gold_ledger) as gold,
-                    (SELECT max_barrel_capacity FROM global_inventory),
-                    SUM(red_ml_delta) as red_ml,
-                    SUM(green_ml_delta) as green_ml,
-                    SUM(blue_ml_delta) as blue_ml,
-                    SUM(dark_ml_delta) as dark_ml
+                    (SELECT COALESCE(SUM(gold_delta), 0) FROM gold_ledger) as gold,
+                    (SELECT COALESCE(SUM(ml_capacity_increase), 0) FROM capacity_order_ledger) as max_barrel_capacity,
+                    COALESCE(SUM(red_ml_delta), 0) as red_ml,
+                    COALESCE(SUM(green_ml_delta), 0) as green_ml,
+                    COALESCE(SUM(blue_ml_delta), 0) as blue_ml,
+                    COALESCE(SUM(dark_ml_delta), 0) as dark_ml
                 FROM liquid_ledger
                 """
             )

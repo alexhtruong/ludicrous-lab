@@ -189,28 +189,35 @@ def create_bottle_plan(
                 """
             )
         ).all()
-
         if len(active_potions) == 0:
             return []
         
+        # TODO: check if we have enough liquid to make potions
+        # if not, return empty list
         # evenly divide so that they have a equal max cap
         remaining_space = maximum_potion_capacity - all_potion_quantities
         target_quantity = remaining_space // len(active_potions)
+        print(f"active_potions: {active_potions}")
+        print(f"remaining_space: {remaining_space}")
+        print(f"target_quantity: {target_quantity}")
         for potion in active_potions:
+            print(f"\npotion: {potion}")
+            print(f"available_liquids: {available_liquids}")
             needed_quantity = target_quantity - potion.total_quantity
             if needed_quantity <= 0:
                 continue
 
-            required_red = (potion.red_ml / 100) * needed_quantity
-            required_green = (potion.green_ml / 100) * needed_quantity
-            required_blue = (potion.blue_ml / 100) * needed_quantity
-            required_dark = (potion.dark_ml / 100) * needed_quantity
+            required_red_ml = potion.red_ml * needed_quantity
+            required_green_ml = potion.green_ml * needed_quantity
+            required_blue_ml = potion.blue_ml * needed_quantity
+            required_dark_ml = potion.dark_ml * needed_quantity
+            print(f"required_red: {required_red_ml}")
 
             # check if we have enough liquid
-            if (required_red > available_liquids["red_ml"] or
-                required_green > available_liquids["green_ml"] or
-                required_blue > available_liquids["blue_ml"] or
-                required_dark > available_liquids["dark_ml"]):
+            if (required_red_ml > available_liquids["red_ml"] or
+                required_green_ml > available_liquids["green_ml"] or
+                required_blue_ml > available_liquids["blue_ml"] or
+                required_dark_ml > available_liquids["dark_ml"]):
                 
                 # calculate max amount possible based on available liquids
                 # the minimium will be the limiting factor
@@ -220,11 +227,13 @@ def create_bottle_plan(
                     available_liquids["blue_ml"] // potion.blue_ml if potion.blue_ml > 0 else float('inf'),
                     available_liquids["dark_ml"] // potion.dark_ml if potion.dark_ml > 0 else float('inf')
                 )
+                print(f"possible_quantity: {possible_quantity}")
                 
                 if possible_quantity <= 0:
                     continue
                 
                 needed_quantity = min(needed_quantity, possible_quantity)
+                print(f"needed_quantity: {needed_quantity}")
 
             recipe = [
                 potion.red_ml,
@@ -265,11 +274,11 @@ def get_bottle_plan():
             sqlalchemy.text(
                 """
                 SELECT 
-                    (SELECT max_potion_capacity FROM global_inventory),
-                    SUM(red_ml_delta) as red_ml,
-                    SUM(green_ml_delta) as green_ml,
-                    SUM(blue_ml_delta) as blue_ml,
-                    SUM(dark_ml_delta) as dark_ml
+                    (SELECT COALESCE(SUM(potion_capacity_increase), 0) FROM capacity_order_ledger) as max_potion_capacity,
+                    COALESCE(SUM(red_ml_delta), 0) as red_ml,
+                    COALESCE(SUM(green_ml_delta), 0) as green_ml,
+                    COALESCE(SUM(blue_ml_delta), 0) as blue_ml,
+                    COALESCE(SUM(dark_ml_delta), 0) as dark_ml
                 FROM liquid_ledger
                 """
             )

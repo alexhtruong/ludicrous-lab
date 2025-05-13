@@ -16,19 +16,39 @@ def reset():
     Reset the game state. Gold goes to 100, all potions are removed from
     inventory, and all barrels are removed from inventory. Carts are all reset.
     """
-
     with db.engine.begin() as connection:
+        connection.execute(
+            sqlalchemy.text("DELETE FROM gold_ledger")
+        )
+        connection.execute(
+            sqlalchemy.text("DELETE FROM potion_ledger")
+        )
+        connection.execute(
+            sqlalchemy.text("DELETE FROM liquid_ledger")
+        )
+        connection.execute(
+            sqlalchemy.text("DELETE FROM carts")
+        )
+        connection.execute(
+            sqlalchemy.text("DELETE FROM cart_items")
+        )
+        connection.execute(
+            sqlalchemy.text("DELETE FROM capacity_order_ledger")
+        )
         connection.execute(
             sqlalchemy.text(
                 """
-                UPDATE global_inventory SET 
-                gold = 100,
-                red_ml = 0,
-                green_ml = 0,
-                blue_ml = 0,
-                red_potions = 0,
-                green_potions = 0,
-                blue_potions = 0
+                INSERT INTO gold_ledger (order_id, gold_delta, transaction_type)
+                VALUES (-1, 100, 'GAME_RESET')
+                """
+            )
+        )
+        connection.execute(
+            sqlalchemy.text(
+                """
+                INSERT INTO capacity_order_ledger 
+                (order_id, potion_capacity_increase, ml_capacity_increase, gold_delta)
+                VALUES (-1, 50, 10000, 0)
                 """
             )
         )
