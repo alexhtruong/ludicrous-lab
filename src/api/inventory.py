@@ -93,7 +93,9 @@ def get_capacity_plan():
         ).one()
         max_potion_capacity = capacity.max_potion_capacity
         max_barrel_capacity = capacity.max_barrel_capacity
-        if (max_potion_capacity >= 350 and max_barrel_capacity >= 40000):
+
+        # NOTE roughly its diminishing returns past this point, and not worth to spend more gold
+        if (max_potion_capacity >= 300 and max_barrel_capacity >= 40000):
             return CapacityPlan(potion_capacity=0, ml_capacity=0)
         
         liquid_utilization = total_liquid_in_inventory / max_barrel_capacity
