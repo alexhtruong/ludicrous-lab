@@ -130,6 +130,11 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
             }
         )
 
+def calculate_max_quantity(barrel: Barrel, gold: int, remaining_capacity: int) -> int:
+    """Calculate maximum quantity we can buy based on gold and capacity constraints"""
+    max_by_gold = gold // barrel.price
+    max_by_capacity = remaining_capacity // barrel.ml_per_barrel
+    return min(max_by_gold, max_by_capacity)
 
 def create_barrel_plan(
     gold: int,
@@ -166,48 +171,71 @@ def create_barrel_plan(
             idx += 1
         return score
 
-    def would_exceed_barrel_capacity(barrel: Barrel) -> bool:
-        total_in_inventory = current_red_ml + current_green_ml + current_blue_ml + current_dark_ml
-        new_amount = total_in_inventory + (barrel.ml_per_barrel) # TODO: configure for multiple quantity barrels  
-        if new_amount > max_barrel_capacity:
-            print(f"skipping - would exceed barrel capacity")
-            return True
-        return False
+    # def would_exceed_barrel_capacity(barrel: Barrel) -> bool:
+    #     total_in_inventory = current_red_ml + current_green_ml + current_blue_ml + current_dark_ml
+    #     new_amount = total_in_inventory + (barrel.ml_per_barrel) # TODO: configure for multiple quantity barrels  
+    #     if new_amount > max_barrel_capacity:
+    #         print(f"skipping - would exceed barrel capacity")
+    #         return True
+    #     return False
     
+    remaining_gold = gold
+    remaining_capacity = max_barrel_capacity - (current_red_ml + current_green_ml + current_blue_ml + current_dark_ml)
     valid_barrels = []
     affordable_barrels = [
         barrel for barrel in wholesale_catalog 
-        if barrel.price <= gold 
+        if barrel.price <= remaining_gold 
         and not barrel.sku.startswith('JUNK')
-        and not would_exceed_barrel_capacity(barrel)
     ]
+
     for barrel in affordable_barrels:
-        print(f"evaluating barrel {barrel.sku}: price={barrel.price}, gold={gold}")
-        # value_score = barrel.ml_per_barrel / barrel.price
+        max_quantity = calculate_max_quantity(barrel, remaining_gold, remaining_capacity)
+        if max_quantity == 0:
+            continue
+
         balance_score = calculate_balance_score(barrel)
-        # total_score = value_score * balance_score
-        total_score = balance_score
-        print(f"total_score: {total_score}")
+        total_score = balance_score * max_quantity
         if total_score > 0:
-            valid_barrels.append((barrel, total_score))
+            valid_barrels.append((barrel, total_score, max_quantity))
 
     if not valid_barrels:
-        # if no valid barrels based on scoring, try random selection from affordable ones
         if affordable_barrels:
             random_barrel = random.choice(affordable_barrels)
-            print(f"no optimal barrels found. randomly selected: {random_barrel.sku}")
-            return [BarrelOrder(sku=random_barrel.sku, quantity=1)]
+            max_quantity = calculate_max_quantity(random_barrel, remaining_gold, remaining_capacity)
+            return [BarrelOrder(sku=random_barrel.sku, quantity=max_quantity or 1)]
         return []
-    print(valid_barrels)
 
-    best_barrel, best_score = max(valid_barrels, key=lambda x: x[1]) # returns (Barrel, 0.8)
-    print("BEST BARREL SKU: " + best_barrel.sku)
-    return [
-        BarrelOrder(
-            sku=best_barrel.sku,
-            quantity=1 # TODO: configure but for now we can just buy
-        )
-    ]
+    # sort barrels by score in descending order
+    valid_barrels.sort(key=lambda x: x[1], reverse=True)
+    orders = []
+    
+    # take top 2 barrels and calculate optimal quantities
+    for barrel, score, max_qty in valid_barrels[:2]:
+        if remaining_gold >= barrel.price and max_qty > 0:
+            # calculate total liquid after this order
+            total_liquid = (current_red_ml + current_green_ml + 
+                          current_blue_ml + current_dark_ml + 
+                          (barrel.ml_per_barrel * max_qty))
+            
+            # skip if this would exceed capacity
+            if total_liquid > max_barrel_capacity:
+                print(f"Skipping order - would exceed max capacity of {max_barrel_capacity}")
+                continue
+
+            orders.append(BarrelOrder(
+                sku=barrel.sku,
+                quantity=max_qty
+            ))
+            remaining_gold -= barrel.price * max_qty
+            remaining_capacity -= barrel.ml_per_barrel * max_qty
+            
+            # update current levels for next iteration
+            current_red_ml += barrel.ml_per_barrel * max_qty * barrel.potion_type[0]
+            current_green_ml += barrel.ml_per_barrel * max_qty * barrel.potion_type[1]
+            current_blue_ml += barrel.ml_per_barrel * max_qty * barrel.potion_type[2]
+            current_dark_ml += barrel.ml_per_barrel * max_qty * barrel.potion_type[3]
+
+    return orders
 
 @router.post("/plan", response_model=List[BarrelOrder])
 def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
