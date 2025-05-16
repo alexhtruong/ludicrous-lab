@@ -64,6 +64,7 @@ def get_capacity_plan():
     - Each additional capacity unit costs 1000 gold.
     """
     with db.engine.begin() as connection:
+        # get gold, potion count, and liquids
         inventory = connection.execute(
             sqlalchemy.text(
             """
@@ -146,6 +147,7 @@ def deliver_capacity_plan(capacity_purchase: CapacityPlan, order_id: int):
         if existing_order:
             return
 
+        # update capacity and subtract gold
         connection.execute(
             sqlalchemy.text(
                 """

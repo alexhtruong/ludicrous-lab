@@ -178,7 +178,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         cart_exists = connection.execute(
             sqlalchemy.text(
                 """
-                SELECT cart_id
+                SELECT cart_id, character_class
                 FROM carts 
                 WHERE cart_id = :cart_id
                 FOR UPDATE
@@ -190,6 +190,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         if cart_exists is None:
             print("cart doesn't exist")
             return
+        
+        character_class = cart_exists.character_class
 
         # Then get totals
         cart_info = connection.execute(
@@ -260,6 +262,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 total_gold_paid=0
             )
         
+        # update gold and potion ledger, check out cart, and update sale analytics
         connection.execute(
             sqlalchemy.text(
                 """
@@ -275,19 +278,37 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                     INSERT INTO potion_ledger (order_id, line_item_id, sku, quantity_delta, transaction_type)
                     SELECT 
                         :cart_id,
-                        ROW_NUMBER() OVER () as line_item_id,  -- ROW_NUMBER() generates unique incrementing numbers for each potion in a specific cart(ex. 1,2,3,...)
+                        ROW_NUMBER() OVER () as line_item_id,
                         sku,
                         -quantity, 
                         'POTION_SALE'
                     FROM cart_items
                     WHERE cart_id = :cart_id
+                ), cur_time AS (
+                    SELECT day_of_week, hour_of_day
+                    FROM time_analytics
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ), sale_analytics_update AS (
+                    INSERT INTO sale_analytics 
+                    (cart_id, customer_class, hour_of_day, day_of_week, total_gold, potion_count)
+                    SELECT 
+                        :cart_id,
+                        :character_class,
+                        hour_of_day,
+                        day_of_week,
+                        :gold_delta,
+                        :potion_count
+                    FROM cur_time
                 )
                 SELECT 1
                 """
             ),
             {
                 "cart_id": cart_id,
-                "gold_delta": total_gold
+                "gold_delta": total_gold,
+                "character_class": character_class,
+                "potion_count": total_potions_bought
             }
         )
         

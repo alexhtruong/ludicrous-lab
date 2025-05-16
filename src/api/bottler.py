@@ -48,8 +48,6 @@ def post_deliver_bottles(potions_delivered: List[PotionMixes], order_id: int):
     """
     # NOTE we are receiving bottles in exchange for liquid
     print(f"potions delivered: {potions_delivered} order_id: {order_id}")
-    
-    # update potions_ledger, liquid_ledger
     with db.engine.begin() as connection:
         existing_order = connection.execute(
             sqlalchemy.text(
@@ -192,7 +190,6 @@ def create_bottle_plan(
         if len(active_potions) == 0:
             return []
         
-        # TODO: check if we have enough liquid to make potions
         # if not, return empty list
         # evenly divide so that they have a equal max cap
         remaining_space = maximum_potion_capacity - all_potion_quantities
@@ -328,6 +325,45 @@ def get_bottle_plan():
         maximum_potion_capacity=max_potion_capacity,
         current_potion_inventory=inventory,
     )
+
+def get_potion_demand() -> dict:
+    with db.engine.begin() as connection:
+        connection.execute(
+            sqlalchemy.text(
+                """
+                WITH current_time AS (
+                    SELECT day_of_week, hour_of_day
+                    FROM time_analytics
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ),
+                peak_demand AS (
+                    SELECT 
+                        p.sku,
+                        COUNT(*) as purchase_count,
+                        AVG(pl.quantity_delta) as avg_quantity
+                    FROM potion_ledger pl
+                    JOIN potions p ON pl.sku = p.sku
+                    JOIN sale_analytics sa ON pl.order_id = sa.order_id
+                    WHERE (sa.day_of_week, sa.hour_of_day) IN (
+                        SELECT day_of_week, hour_of_day
+                        FROM time_analytics
+                        WHERE total_sales > (
+                            SELECT AVG(total_sales) FROM time_analytics
+                        )
+                    )
+                    GROUP BY p.sku
+                )
+                SELECT 
+                    sku,
+                    purchase_count,
+                    avg_quantity
+                FROM peak_demand
+                WHERE purchase_count > 0
+                ORDER BY purchase_count DESC
+                """
+            )
+        ).all()
 
 
 if __name__ == "__main__":

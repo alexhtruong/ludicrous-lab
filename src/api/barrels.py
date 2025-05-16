@@ -131,7 +131,6 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
         )
 
 def calculate_max_quantity(barrel: Barrel, gold: int, remaining_capacity: int) -> int:
-    """Calculate maximum quantity we can buy based on gold and capacity constraints"""
     max_by_gold = gold // barrel.price
     max_by_capacity = remaining_capacity // barrel.ml_per_barrel
     return min(max_by_gold, max_by_capacity)
@@ -148,6 +147,10 @@ def create_barrel_plan(
     print(
         f"gold: {gold}, max_barrel_capacity: {max_barrel_capacity}, current_red_ml: {current_red_ml}, current_green_ml: {current_green_ml}, current_blue_ml: {current_blue_ml}, current_dark_ml: {current_dark_ml}, wholesale_catalog: {wholesale_catalog}"
     )
+    
+    # Get time-based demand data
+    #demand_data = get_time_based_demand()
+    #print(demand_data)
     
     current_levels = {
         "red": current_red_ml,
@@ -276,3 +279,53 @@ def get_wholesale_purchase_plan(wholesale_catalog: List[Barrel]):
         current_dark_ml=dark_ml,
         wholesale_catalog=wholesale_catalog,
     )
+
+def get_time_based_demand() -> dict:
+    # analyzes historical sales data to determine demand patterns by time period.
+    # returns a score indicating the relative importance of stocking up now.
+    with db.engine.begin() as connection:
+        result = connection.execute(
+            sqlalchemy.text(
+                """
+                WITH current_time AS (
+                    SELECT day_of_week, hour_of_day
+                    FROM time_analytics
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ),
+                next_hours AS (
+                    SELECT hour_of_day 
+                    FROM time_analytics 
+                    WHERE day_of_week = (SELECT day_of_week FROM current_time)
+                    AND hour_of_day > (SELECT hour_of_day FROM current_time)
+                    UNION
+                    SELECT hour_of_day 
+                    FROM time_analytics 
+                    WHERE day_of_week = CASE 
+                        WHEN (SELECT day_of_week FROM current_time) = 'Soulday' THEN 'Edgeday'
+                        WHEN (SELECT day_of_week FROM current_time) = 'Edgeday' THEN 'Bloomday'
+                        WHEN (SELECT day_of_week FROM current_time) = 'Bloomday' THEN 'Aracanaday'
+                        WHEN (SELECT day_of_week FROM current_time) = 'Aracanaday' THEN 'Hearthday'
+                        WHEN (SELECT day_of_week FROM current_time) = 'Hearthday' THEN 'Crownday'
+                        WHEN (SELECT day_of_week FROM current_time) = 'Crownday' THEN 'Blesseday'
+                        WHEN (SELECT day_of_week FROM current_time) = 'Blesseday' THEN 'Soulday'
+                    END
+                    AND hour_of_day <= (SELECT hour_of_day FROM current_time)
+                )
+                SELECT 
+                    COALESCE(AVG(total_sales), 0) as avg_upcoming_sales,
+                    COALESCE(AVG(CASE WHEN total_sales = 0 AND visitor_count > 0 THEN 1 ELSE 0 END), 0) as stockout_risk
+                FROM time_analytics ta
+                WHERE (ta.day_of_week, ta.hour_of_day) IN (
+                    SELECT ct.day_of_week, nh.hour_of_day 
+                    FROM current_time ct
+                    CROSS JOIN next_hours nh
+                )
+                """
+            )
+        ).first()
+        
+        return {
+            'avg_upcoming_sales': float(result.avg_upcoming_sales),
+            'stockout_risk': float(result.stockout_risk)
+        }
