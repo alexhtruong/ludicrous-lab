@@ -133,7 +133,8 @@ def post_deliver_barrels(barrels_delivered: List[Barrel], order_id: int):
 def calculate_max_quantity(barrel: Barrel, gold: int, remaining_capacity: int) -> int:
     max_by_gold = gold // barrel.price
     max_by_capacity = remaining_capacity // barrel.ml_per_barrel
-    return min(max_by_gold, max_by_capacity)
+    max_by_availability = barrel.quantity
+    return min(max_by_gold, max_by_capacity, max_by_availability)
 
 def create_barrel_plan(
     gold: int,
