@@ -97,10 +97,9 @@ def get_capacity_plan():
 
         # NOTE roughly its diminishing returns past this point, and not worth to spend more gold
         if max_barrel_capacity >= 90000 and max_potion_capacity >= 300:
-            capacity = int(gold // 2000)
-            return CapacityPlan(potion_capacity=capacity)
-        else:
             return CapacityPlan(potion_capacity=0, ml_capacity=0)
+        else:
+            return CapacityPlan(potion_capacity=5)
         
         liquid_utilization = total_liquid_in_inventory / max_barrel_capacity
         potion_utilization = total_potions_in_inventory / max_potion_capacity
