@@ -186,10 +186,15 @@ def create_barrel_plan(
     remaining_gold = gold
     remaining_capacity = max_barrel_capacity - (current_red_ml + current_green_ml + current_blue_ml + current_dark_ml)
     valid_barrels = []
+    # affordable_barrels = [
+    #     barrel for barrel in wholesale_catalog 
+    #     if barrel.price <= remaining_gold 
+    #     and not barrel.sku.startswith('JUNK')
+    # ]
     affordable_barrels = [
-        barrel for barrel in wholesale_catalog 
-        if barrel.price <= remaining_gold 
-        and not barrel.sku.startswith('JUNK')
+        barrel for barrel in wholesale_catalog
+        if barrel.price <= remaining_gold
+        and barrel.sku == 'LARGE_DARK_BARREL'
     ]
 
     for barrel in affordable_barrels:
@@ -238,7 +243,6 @@ def create_barrel_plan(
             current_green_ml += barrel.ml_per_barrel * max_qty * barrel.potion_type[1]
             current_blue_ml += barrel.ml_per_barrel * max_qty * barrel.potion_type[2]
             current_dark_ml += barrel.ml_per_barrel * max_qty * barrel.potion_type[3]
-
     return orders
 
 @router.post("/plan", response_model=List[BarrelOrder])
