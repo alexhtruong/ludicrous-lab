@@ -160,19 +160,22 @@ def create_barrel_plan(
         "dark": current_dark_ml
     }
     target_per_liquid = max_barrel_capacity / 4
+    dark_preference_multiplier = 1.5
     def compute_deficit():
         return {
-            color: max(0, target_per_liquid - current_levels[color])
-            for color in current_levels
+            "red": max(0, target_per_liquid - current_levels["red"]),
+            "green": max(0, target_per_liquid - current_levels["green"]),
+            "blue": max(0, target_per_liquid - current_levels["blue"]),
+            "dark": max(0, target_per_liquid * dark_preference_multiplier - current_levels["dark"])
         }
 
     def calculate_balance_score(barrel: Barrel) -> float:
         deficit = compute_deficit()
-        idx = 0
+        colors = ["red", "green", "blue", "dark"]
         score = 0
-        for color in deficit:
-            score += barrel.potion_type[idx] * deficit[color] * barrel.ml_per_barrel
-            idx += 1
+        for idx, color in enumerate(colors):
+            multiplier = dark_preference_multiplier if color == "dark" else 1.0
+            score += barrel.potion_type[idx] * deficit[color] * barrel.ml_per_barrel * multiplier
         return score
 
     # def would_exceed_barrel_capacity(barrel: Barrel) -> bool:
