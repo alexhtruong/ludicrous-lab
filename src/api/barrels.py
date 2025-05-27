@@ -186,16 +186,16 @@ def create_barrel_plan(
     remaining_gold = gold
     remaining_capacity = max_barrel_capacity - (current_red_ml + current_green_ml + current_blue_ml + current_dark_ml)
     valid_barrels = []
-    # affordable_barrels = [
-    #     barrel for barrel in wholesale_catalog 
-    #     if barrel.price <= remaining_gold 
-    #     and not barrel.sku.startswith('JUNK')
-    # ]
     affordable_barrels = [
-        barrel for barrel in wholesale_catalog
-        if barrel.price <= remaining_gold
-        and barrel.sku == 'LARGE_DARK_BARREL'
+        barrel for barrel in wholesale_catalog 
+        if barrel.price <= remaining_gold 
+        and not barrel.sku.startswith('JUNK')
     ]
+    # affordable_barrels = [
+    #     barrel for barrel in wholesale_catalog
+    #     if barrel.price <= remaining_gold
+    #     and barrel.sku == 'LARGE_DARK_BARREL'
+    # ]
 
     for barrel in affordable_barrels:
         max_quantity = calculate_max_quantity(barrel, remaining_gold, remaining_capacity)
