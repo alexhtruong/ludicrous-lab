@@ -148,7 +148,7 @@ def create_barrel_plan(
     print(
         f"gold: {gold}, max_barrel_capacity: {max_barrel_capacity}, current_red_ml: {current_red_ml}, current_green_ml: {current_green_ml}, current_blue_ml: {current_blue_ml}, current_dark_ml: {current_dark_ml}, wholesale_catalog: {wholesale_catalog}"
     )
-    
+    return []
     # Get time-based demand data
     #demand_data = get_time_based_demand()
     #print(demand_data)
