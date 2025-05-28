@@ -14,11 +14,10 @@ router = APIRouter(
 
 
 class SearchSortOptions(str, Enum):
-    customer_name = "customer_name"
-    item_sku = "item_sku"
+    customer_name = "customer"
+    item = "item"
     line_item_total = "line_item_total"
-    timestamp = "timestamp"
-
+    timestamp = "time"
 
 class SearchSortOrder(str, Enum):
     asc = "asc"
@@ -50,20 +49,63 @@ def search_orders(
     """
     Search for cart line items by customer name and/or potion sku.
     """
+    with db.engine.begin() as connection:
+        query = """
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY g.created_at) as line_item_id,
+                COUNT(*) OVER() as line_item_total,
+                g.gold_delta as gold,
+                g.created_at as time, 
+                p.name as item, 
+                c.customer_name as customer
+            FROM gold_ledger g
+            JOIN cart_items ci ON ci.cart_id = g.order_id
+            JOIN potions p ON p.sku = ci.sku
+            JOIN carts c ON c.cart_id = ci.cart_id
+            WHERE g.transaction_type = 'POTION_SALE'
+        """
+
+        params = {}
+        if customer_name:
+            query += " AND c.customer_name = :customer_name"
+            params["customer_name"] = customer_name
+
+        if potion_sku:
+            query += " AND p.name = :potion_sku"
+            params["potion_sku"] = potion_sku
+            
+        if sort_col or sort_order:
+            query += f" ORDER BY {sort_col.value} {sort_order.value}"
+
+        results = connection.execute(
+            sqlalchemy.text(query), params
+        ).all()
+
+
+        line_items = [
+            LineItem(
+                line_item_id=row.line_item_id,
+                item_sku=row.item,
+                customer_name=row.customer,
+                line_item_total=row.line_item_total,
+                timestamp=row.time.isoformat()[:19] + "Z"
+            )
+            for row in results
+        ]
+
     return SearchResponse(
         previous=None,
         next=None,
-        results=[
-            LineItem(
-                line_item_id=1,
-                item_sku="1 oblivion potion",
-                customer_name="Scaramouche",
-                line_item_total=50,
-                timestamp="2021-01-01T00:00:00Z",
-            )
-        ],
+        results=line_items
     )
 
+# LineItem(
+#     line_item_id=1,
+#     item_sku="1 oblivion potion",
+#     customer_name="Scaramouche",
+#     line_item_total=50,
+#     timestamp="2021-01-01T00:00:00Z",
+# )
 
 class Customer(BaseModel):
     customer_id: str
