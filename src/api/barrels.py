@@ -151,6 +151,8 @@ def create_barrel_plan(
     # Get time-based demand data
     #demand_data = get_time_based_demand()
     #print(demand_data)
+
+    return []
     
     current_levels = {
         "red": current_red_ml,
