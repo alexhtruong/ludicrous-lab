@@ -55,7 +55,7 @@ def search_orders(
                 ROW_NUMBER() OVER (ORDER BY g.created_at) as line_item_id,
                 COUNT(*) OVER() as line_item_total,
                 g.gold_delta as gold,
-                g.created_at as time, 
+                g.created_at as timestamp, 
                 p.name as item, 
                 c.customer_name as customer
             FROM gold_ledger g
@@ -88,7 +88,7 @@ def search_orders(
                 item_sku=row.item,
                 customer_name=row.customer,
                 line_item_total=row.line_item_total,
-                timestamp=row.time.isoformat()[:19] + "Z"
+                timestamp=row.timestamp.isoformat()[:19] + "Z"
             )
             for row in results
         ]
