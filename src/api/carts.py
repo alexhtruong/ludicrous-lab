@@ -17,7 +17,7 @@ class SearchSortOptions(str, Enum):
     customer_name = "customer"
     item = "item"
     line_item_total = "line_item_total"
-    time = "time"
+    timestamp = "timestamp"
 
 class SearchSortOrder(str, Enum):
     asc = "asc"
@@ -43,7 +43,7 @@ def search_orders(
     customer_name: str = "",
     potion_sku: str = "",
     search_page: str = "",
-    sort_col: SearchSortOptions = SearchSortOptions.time,
+    sort_col: SearchSortOptions = SearchSortOptions.timestamp,
     sort_order: SearchSortOrder = SearchSortOrder.desc,
 ):
     """
