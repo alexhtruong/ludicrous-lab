@@ -14,10 +14,10 @@ router = APIRouter(
 
 
 class SearchSortOptions(str, Enum):
-    customer_name = "c.customer_name"
-    item_sku = "p.name"
-    line_item_total = "g.gold_delta"
-    timestamp = "g.created_at"
+    customer_name = "customer_name"
+    item_sku = "item_sku"
+    line_item_total = "line_item_total"
+    timestamp = "timestamp"
 
 class SearchSortOrder(str, Enum):
     asc = "asc"
@@ -56,6 +56,16 @@ def search_orders(
     except ValueError:
         offset, limit = 0, 10
 
+    # map enum values to SQL column names
+    sort_col_mapping = {
+        SearchSortOptions.customer_name: "c.customer_name",
+        SearchSortOptions.item_sku: "p.name",
+        SearchSortOptions.line_item_total: "g.gold_delta",
+        SearchSortOptions.timestamp: "g.created_at"
+    }
+
+    sql_sort_col = sort_col_mapping[sort_col]
+
     with db.engine.begin() as connection:
         query = """
             SELECT
@@ -72,7 +82,7 @@ def search_orders(
             JOIN carts c ON c.cart_id = ci.cart_id
             WHERE g.transaction_type = 'POTION_SALE'
         """.format(
-            sort_col=sort_col.value,
+            sort_col=sql_sort_col,
             sort_order=sort_order.value
         )
 
