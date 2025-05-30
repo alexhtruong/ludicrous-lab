@@ -102,7 +102,7 @@ def search_orders(
         line_items = [
             LineItem(
                 line_item_id=row.line_item_id,
-                item_sku=f"{row.quantity} {row.item}{'s' if row.quantity > 1 else ''}",
+                item_sku=f"{row.quantity} {row.item_sku}{'s' if row.quantity > 1 else ''}",
                 customer_name=row.customer_name,
                 line_item_total=row.line_item_total,
                 timestamp=row.timestamp.isoformat()[:19] + "Z"
