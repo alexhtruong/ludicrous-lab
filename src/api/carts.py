@@ -15,7 +15,7 @@ router = APIRouter(
 
 class SearchSortOptions(str, Enum):
     customer_name = "customer"
-    item = "item"
+    item_sku = "item_sku"
     line_item_total = "line_item_total"
     timestamp = "timestamp"
 
@@ -60,11 +60,11 @@ def search_orders(
         query = """
             SELECT
                 ROW_NUMBER() OVER (ORDER BY g.created_at) as line_item_id,
-                g.gold_delta as gold,
+                g.gold_delta as line_item_total,
                 ci.quantity as quantity,
                 g.created_at as timestamp, 
-                p.name as item, 
-                c.customer_name as customer,
+                p.name as item_sku, 
+                c.customer_name as customer_name,
                 COUNT(*) OVER() as total_count
             FROM gold_ledger g
             JOIN cart_items ci ON ci.cart_id = g.order_id
