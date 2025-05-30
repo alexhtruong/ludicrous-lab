@@ -49,6 +49,13 @@ def search_orders(
     """
     Search for cart line items by customer name and/or potion sku.
     """
+    
+    # parse page parameters
+    try:
+        offset, limit = map(int, search_page.split("_")) if search_page else (0, 10)
+    except ValueError:
+        offset, limit = 0, 10
+
     with db.engine.begin() as connection:
         query = """
             SELECT
@@ -57,7 +64,8 @@ def search_orders(
                 ci.quantity as quantity,
                 g.created_at as timestamp, 
                 p.name as item, 
-                c.customer_name as customer
+                c.customer_name as customer,
+                COUNT(*) OVER() as total_count
             FROM gold_ledger g
             JOIN cart_items ci ON ci.cart_id = g.order_id
             JOIN potions p ON p.sku = ci.sku
@@ -77,9 +85,19 @@ def search_orders(
         if sort_col or sort_order:
             query += f" ORDER BY {sort_col.value} {sort_order.value}"
 
+        if len(search_page) > 0:
+            query += f" LIMIT {limit} OFFSET {offset}"
+
         results = connection.execute(
             sqlalchemy.text(query), params
         ).all()
+
+        if not results:
+            return SearchResponse(
+                previous=None,
+                next=None,
+                results=[]
+            )
 
         line_items = [
             LineItem(
@@ -92,9 +110,14 @@ def search_orders(
             for row in results
         ]
 
+        total_count = results[0].total_count if results else 0
+        previous = f"{max(0, offset-limit)}_{limit}" if offset > 0 else None
+        next = f"{offset+limit}_{limit}" if offset + limit < total_count else None
+
+
     return SearchResponse(
-        previous=None,
-        next="10_10",
+        previous=previous,
+        next=next,
         results=line_items
     )
 
