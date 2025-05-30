@@ -53,8 +53,8 @@ def search_orders(
         query = """
             SELECT
                 ROW_NUMBER() OVER (ORDER BY g.created_at) as line_item_id,
-                COUNT(*) OVER() as line_item_total,
                 g.gold_delta as gold,
+                ci.quantity as quantity,
                 g.created_at as timestamp, 
                 p.name as item, 
                 c.customer_name as customer
@@ -81,13 +81,12 @@ def search_orders(
             sqlalchemy.text(query), params
         ).all()
 
-
         line_items = [
             LineItem(
                 line_item_id=row.line_item_id,
-                item_sku=row.item,
+                item_sku=f"{row.quantity} {row.item}{'s' if row.quantity > 1 else ''}",
                 customer_name=row.customer,
-                line_item_total=row.line_item_total,
+                line_item_total=row.gold,
                 timestamp=row.timestamp.isoformat()[:19] + "Z"
             )
             for row in results
@@ -95,7 +94,7 @@ def search_orders(
 
     return SearchResponse(
         previous=None,
-        next=None,
+        next="10_10",
         results=line_items
     )
 
