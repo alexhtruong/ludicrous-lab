@@ -14,10 +14,10 @@ router = APIRouter(
 
 
 class SearchSortOptions(str, Enum):
-    customer_name = "customer"
-    item_sku = "item_sku"
-    line_item_total = "line_item_total"
-    timestamp = "timestamp"
+    customer_name = "c.customer_name"
+    item_sku = "p.name"
+    line_item_total = "g.gold_delta"
+    timestamp = "g.created_at"
 
 class SearchSortOrder(str, Enum):
     asc = "asc"
@@ -59,7 +59,7 @@ def search_orders(
     with db.engine.begin() as connection:
         query = """
             SELECT
-                ROW_NUMBER() OVER (ORDER BY g.created_at) as line_item_id,
+                ROW_NUMBER() OVER (ORDER BY {sort_col} {sort_order}) as line_item_id,
                 g.gold_delta as line_item_total,
                 ci.quantity as quantity,
                 g.created_at as timestamp, 
@@ -71,7 +71,10 @@ def search_orders(
             JOIN potions p ON p.sku = ci.sku
             JOIN carts c ON c.cart_id = ci.cart_id
             WHERE g.transaction_type = 'POTION_SALE'
-        """
+        """.format(
+            sort_col=sort_col.value,
+            sort_order=sort_order.value
+        )
 
         params = {}
         if customer_name:
@@ -81,9 +84,6 @@ def search_orders(
         if potion_sku:
             query += " AND p.name = :potion_sku"
             params["potion_sku"] = potion_sku
-            
-        if sort_col or sort_order:
-            query += f" ORDER BY {sort_col.value} {sort_order.value}"
 
         if len(search_page) > 0:
             query += f" LIMIT {limit} OFFSET {offset}"
@@ -103,8 +103,8 @@ def search_orders(
             LineItem(
                 line_item_id=row.line_item_id,
                 item_sku=f"{row.quantity} {row.item}{'s' if row.quantity > 1 else ''}",
-                customer_name=row.customer,
-                line_item_total=row.gold,
+                customer_name=row.customer_name,
+                line_item_total=row.line_item_total,
                 timestamp=row.timestamp.isoformat()[:19] + "Z"
             )
             for row in results
